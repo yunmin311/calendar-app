@@ -31,6 +31,9 @@ const V = {
   },
 };
 
+// 导出变体配置, 供 exportPdf 复用同一套色值/纹理参数(单一真源, 屏幕=印刷同参)
+export const RECORD_VARIANTS = V;
+
 function seal(x, y, label, c) {
   const s = 4.2;
   return R(x, y, s, s, c.seal)

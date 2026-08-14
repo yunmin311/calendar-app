@@ -6,9 +6,11 @@
 //   · 拉丁字 —— 传入 EB Garamond(OFL) 则子集嵌入; 否则回退 PDF 内置 Helvetica。
 //   · 中文字 —— 传入 霞鹜文楷(OFL) 则子集嵌入并渲染月份名/标签/备注; 否则该批 CJK 文本留空缺口。
 //   subset 由 @pdf-lib/fontkit 完成(只嵌用到的字形), 不需要外部 pyftsubset。
-import { geometry, cellRect } from './layout.js';
+import { geometry, cellRect, dayCenterX } from './layout.js';
 import { theme } from './theme.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
+import { RECORD_VARIANTS } from './renderRecord.js';
+import { toRecordModel } from '../data/activity.js';
 
 const MM = 2.834645669; // 1mm = 2.834645669pt
 
@@ -128,10 +130,199 @@ export async function exportPosterPDF(model) {
     fetchFont('/fonts/LXGWWenKai-Regular.ttf'), // 未放置则 null → CJK 走缺口
   ]);
   const bytes = await buildPosterPdfBytes(model, { fonts: { latin, latinBold, cjk } });
+  downloadPdf(bytes, `线性年历-${model.year}-A1.pdf`);
+}
+
+// ============================================================================
+// 活动留痕 · B 对齐的印刷 PDF —— 里程碑=朱砂印、活动分类色贯通、拓质栅格化嵌入。
+// A1 几何 / 出血 / 裁切标 / CMYK / 子集嵌字 一律沿用上面的管线, 不动。
+// ============================================================================
+
+// 拓质图层的印刷落地(正面解决那个真风险):
+//   feTurbulence 滤镜进 PDF 不保持矢量 → 导出前把「纸+拓质」单独栅格化成 ≥300dpi 位图,
+//   作背景嵌入; 文字/线/色块全部保持矢量画在其上(色块用 <1 透明度, 拓质从底下透上来)。
+// 仅浏览器可栅格化(需 canvas); node 无 canvas → 返回 null, 退化为纯矢量(纸=平涂)。
+export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', dpi = 300 } = {}) {
+  if (typeof document === 'undefined' || typeof Image === 'undefined') return null; // node: 跳过
+  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const MAXPX = 12000; // canvas 长边上限(A1+出血 @300dpi≈10004px, 尚在范围内)
+  let scale = dpi / 25.4;
+  let pxW = Math.round(mediaWmm * scale), pxH = Math.round(mediaHmm * scale);
+  const longest = Math.max(pxW, pxH);
+  if (longest > MAXPX) { // 超限则回退 dpi, 并如实记录实际 dpi
+    const k = MAXPX / longest; pxW = Math.round(pxW * k); pxH = Math.round(pxH * k);
+    // eslint-disable-next-line no-console
+    console.warn(`[拓质栅格化] ${dpi}dpi 超 canvas 上限, 实际降到 ${Math.round(dpi * k)}dpi`);
+  }
+  // 与 renderRecord 同参的纹理 SVG(mm 视口 → 频率与屏幕一致): 纸底 + 大斑块 mottle(正片叠底) + 剥蚀 speckle(滤色)
+  const speckleFilter = c.speckle
+    ? `<filter id="sp"><feTurbulence type="fractalNoise" baseFrequency="0.14" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1.5 1.5 1.5 0 -1.3"/></filter>`
+    : '';
+  const speckleRect = c.speckle
+    ? `<rect width="${mediaWmm}" height="${mediaHmm}" filter="url(#sp)" opacity="${c.speckleOp}" style="mix-blend-mode:screen"/>`
+    : '';
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${mediaWmm} ${mediaHmm}" width="${pxW}" height="${pxH}" preserveAspectRatio="none">`
+    + `<defs>`
+    + `<filter id="mo" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${c.texFreq}" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>`
+    + speckleFilter
+    + `</defs>`
+    + `<rect width="${mediaWmm}" height="${mediaHmm}" fill="${c.paper}"/>`
+    + `<rect width="${mediaWmm}" height="${mediaHmm}" filter="url(#mo)" opacity="${c.texOp}" style="mix-blend-mode:multiply"/>`
+    + speckleRect
+    + `</svg>`;
+
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = pxW; canvas.height = pxH;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, pxW, pxH);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+export async function buildRecordPdfBytes(model, opts = {}) {
+  const { PDFDocument, StandardFonts, cmyk } = await import('../vendor/pdf-lib.esm.js');
+  const fonts = opts.fonts || {};
+  const variant = model.variant || 'editorial-rubbing';
+  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const mono = !!c.mono;
+
+  const hexToCmyk = (hex) => {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16) / 255, g2 = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+    const k = 1 - Math.max(r, g2, b);
+    if (k >= 1) return cmyk(0, 0, 0, 1);
+    return cmyk((1 - r - k) / (1 - k), (1 - g2 - k) / (1 - k), (1 - b - k) / (1 - k), k);
+  };
+
+  const g = geometry();
+  const { year, categories = [], days = {}, milestones = [] } = model;
+  const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
+  const mediaWmm = g.PAGE.w + 2 * g.BLEED, mediaHmm = g.PAGE.h + 2 * g.BLEED;
+
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([mediaWmm * MM, mediaHmm * MM]);
+
+  let latin, latinB, cjk = null;
+  if (fonts.latin || fonts.cjk) { const fk = await import('../vendor/fontkit.mjs'); doc.registerFontkit(fk.default || fk); }
+  latin  = fonts.latin     ? await doc.embedFont(fonts.latin,     { subset: true }) : await doc.embedFont(StandardFonts.Helvetica);
+  latinB = fonts.latinBold ? await doc.embedFont(fonts.latinBold, { subset: true }) : (fonts.latin ? latin : await doc.embedFont(StandardFonts.HelveticaBold));
+  if (fonts.cjk) cjk = await doc.embedFont(fonts.cjk, { subset: true });
+  const kai = cjk || latin; // 无中文字时 CJK 文本走缺口(见字体授权文档)
+
+  const X = (xmm) => (xmm + g.BLEED) * MM;
+  const Y = (ymm) => (mediaHmm - (ymm + g.BLEED)) * MM;
+  const rect = (xmm, ymm, wmm, hmm, color, opacity = 1) => page.drawRectangle({ x: X(xmm), y: Y(ymm + hmm), width: wmm * MM, height: hmm * MM, color, opacity });
+  const line = (x1, y1, x2, y2, color, wmm) => page.drawLine({ start: { x: X(x1), y: Y(y1) }, end: { x: X(x2), y: Y(y2) }, thickness: wmm * MM, color });
+  const text = (xmm, ymm, str, sizeMM, color, f = latin, align = 'left') => {
+    if (!str) return;
+    let w = 0; try { w = f.widthOfTextAtSize(str, sizeMM * MM); } catch { return; } // 缺字形则跳过
+    const x = align === 'end' ? X(xmm) - w : align === 'middle' ? X(xmm) - w / 2 : X(xmm);
+    page.drawText(str, { x, y: Y(ymm), size: sizeMM * MM, font: f, color });
+  };
+
+  const inkC = hexToCmyk(c.ink), softC = hexToCmyk(c.inkSoft), lineC = hexToCmyk(c.line), sealC = hexToCmyk(c.seal), paperC = hexToCmyk(c.paper), paper2C = hexToCmyk(c.paper2);
+
+  // ① 背景: 有拓质位图就铺满(含出血), 否则平涂纸(node 退化)
+  if (opts.textureImage) {
+    const png = await doc.embedPng(opts.textureImage);
+    page.drawImage(png, { x: 0, y: 0, width: mediaWmm * MM, height: mediaHmm * MM });
+  } else {
+    page.drawRectangle({ x: 0, y: 0, width: mediaWmm * MM, height: mediaHmm * MM, color: paperC });
+  }
+
+  // ② 报头(矢量)
+  if (mono) text(g.contentX, g.contentY + 20, c.era, 20, inkC, kai);
+  else      text(g.contentX, g.contentY + 20, String(year), 20, inkC, latinB);
+  text(g.contentX + (mono ? 30 : 52), g.contentY + 18, c.title, 8, inkC, kai);
+  const mx = g.gridRight;
+  text(mx, g.contentY + 7,  c.sub1, 2.9, softC, kai, 'end');
+  text(mx, g.contentY + 13, 'Format A1 · 841x594 mm', 2.9, softC, latin, 'end');
+  text(mx, g.contentY + 19, c.sub2, 2.9, softC, kai, 'end');
+  line(g.contentX, g.mastheadRuleY, g.gridRight, g.mastheadRuleY, inkC, 0.6);
+
+  // ③ 顶部日刻度
+  for (let d = 1; d <= 31; d++) text(dayCenterX(g, d), g.axisY + g.AXIS_H * 0.72, String(d), 3.2, softC, latin, 'middle');
+  line(g.contentX, g.cellsTop, g.gridRight, g.cellsTop, inkC, 0.5);
+
+  // ④ 12 月行: 色块=活动强度(透明度), 拓质从底透上来; 里程碑另走朱砂
+  for (let m = 0; m < 12; m++) {
+    const rowY = g.cellsTop + m * g.rowH, rowMid = rowY + g.rowH * 0.5, dim = daysInMonth(year, m);
+    for (let d = 1; d <= 31; d++) {
+      const cell = cellRect(g, m, d);
+      if (d > dim) continue;
+      const rec = days[iso(year, m, d)];
+      if (mono) {
+        if (rec && rec.categoryId !== 'publish') rect(cell.x, cell.y, cell.w, cell.h, inkC, 0.2 + 0.78 * (rec.intensity || 0.3));
+      } else {
+        if (c.weekendTint && isWeekend(year, m, d)) rect(cell.x, cell.y, cell.w, cell.h, paper2C, 0.85);
+        if (rec && rec.categoryId !== 'publish') { const cat = catById[rec.categoryId]; if (cat) rect(cell.x, cell.y, cell.w, cell.h, hexToCmyk(cat.color), 0.45 + 0.55 * (rec.intensity || 0.4)); }
+        if (dow(year, m, d) === 0) rect(cell.x, cell.y + cell.h * 0.22, 0.5, cell.h * 0.56, sealC);
+      }
+    }
+    text(g.contentX, rowMid + 2.2, MONTHS_ZH[m], 6.2, inkC, kai);
+    text(g.gridLeft - 3, rowMid + 1.2, MONTHS_NUM[m], 3.4, mono ? softC : sealC, latin, 'end');
+    line(g.contentX, rowY + g.rowH, g.gridRight, rowY + g.rowH, lineC, mono ? 0.22 : 0.3);
+  }
+
+  // ⑤ 里程碑 = 朱砂印(红方块 + 内白框 + 楷体标签)
+  for (const ms of milestones) {
+    const [yy, mo, d] = ms.date.split('-').map(Number);
+    if (yy !== year) continue;
+    const cell = cellRect(g, mo - 1, d);
+    const s = 4.2;
+    if (cjk && ms.label) rect(cell.x + 6, cell.y + 0.6, Math.min(String(ms.label).length * 3.0 + 1.5, g.cellW * 3), 4.4, paperC, 0.72);
+    rect(cell.x + 1, cell.y + 1, s, s, sealC);
+    page.drawRectangle({ x: X(cell.x + 1.5), y: Y(cell.y + 1 + s - 0.5), width: (s - 1) * MM, height: (s - 1) * MM, color: sealC, borderColor: paperC, borderWidth: 0.25 * MM });
+    if (cjk) text(cell.x + 1 + s + 1.2, cell.y + 1 + s - 0.9, ms.label || '', 3.0, inkC, cjk);
+  }
+
+  // ⑥ 页脚: 图例 + 印刷标注
+  const fb = g.footerY + g.FOOTER_H * 0.5;
+  line(g.contentX, g.footerY, g.gridRight, g.footerY, lineC, 0.3);
+  let lx = g.contentX;
+  const legend = [{ color: c.seal, name: '出版 / 里程碑' },
+    ...(mono ? [{ ink: true, name: '墨深 = 当日投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  for (const it of legend) {
+    if (it.ink) rect(lx, fb - 2, 2.8, 2.8, inkC, 0.8);
+    else rect(lx, fb - 2, 2.8, 2.8, hexToCmyk(it.color));
+    text(lx + 4, fb, it.name, 2.8, softC, kai);
+    lx += 4 + it.name.length * 2.8 + 6;
+  }
+  text(g.gridRight, fb, 'A1 841x594mm  CMYK  BLEED 3mm  FONTS EMBEDDED', 2.8, softC, latin, 'end');
+
+  // ⑦ 四角裁切标(出血区)
+  drawCropMarks(page, g, inkC);
+  return doc.save();
+}
+
+// ---- 浏览器: 活动数组 → 取字体 + 栅格化拓质 → 生成 → 下载 ----
+export async function exportRecordPDF(activities, year = 2026, variant = 'editorial-rubbing', opts = {}) {
+  const model = toRecordModel(activities, year, variant);
+  const g = geometry();
+  const mediaWmm = g.PAGE.w + 2 * g.BLEED, mediaHmm = g.PAGE.h + 2 * g.BLEED;
+  const [latin, latinBold, cjk, textureImage] = await Promise.all([
+    fetchFont('/fonts/EBGaramond_400Regular.ttf'),
+    fetchFont('/fonts/EBGaramond_700Bold.ttf'),
+    fetchFont('/fonts/LXGWWenKai-Regular.ttf'), // 未放置则 null → CJK 走缺口
+    rasterizeRecordTexture({ mediaWmm, mediaHmm, variant, dpi: opts.dpi || 300 }),
+  ]);
+  const bytes = await buildRecordPdfBytes(model, { fonts: { latin, latinBold, cjk }, textureImage });
+  downloadPdf(bytes, `活动留痕-${year}-A1.pdf`);
+  return { hasTexture: !!textureImage, hasCjk: !!cjk };
+}
+
+function downloadPdf(bytes, filename) {
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `线性年历-${model.year}-A1.pdf`;
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
