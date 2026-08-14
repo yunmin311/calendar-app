@@ -10,6 +10,14 @@
 
 ## 台账
 
+### 2026-08-14 · 连跑收尾(本轮到干活边界)
+- **本轮成果**:A 建模细化+契约文档 · B 单月详情页+视图切换 · C 分类色取真值(矿物色) · D 拓质栅格化加固+浏览器实测 · E 公开组件 API+README+健壮性。全部自测→提交→SSH 直推(main 到 `d7ab092`)。
+- **为何停**:原队列①–⑤已全覆盖,自加 E 落实"组件可被调用"。再往下要么撞物理卡点、要么是需用户/CO 定夺的投机项——按"不空转"停,交回执。
+- **待用户/CO 定夺的下一批(未做)**:
+  - **单月卡片 PDF 导出** —— 现 PDF 只出整年长条;单月详情页(renderMonth)可加印刷导出。价值取决于 CO 是否要"可打印月卡",故留给定夺。
+  - **死代码清理** —— 旧「规划海报」路径(`renderPoster.js`、`exportPdf.js` 里的 `buildPosterPdfBytes`/`exportPosterPDF`、`model.js` 的 `sampleModel/loadModel/saveModel`、`scripts/test-pdf.mjs`)已全孤儿、无害但占地。清了组件面更干净;因会动到正在工作的导出文件、且属纯整洁,未擅动。
+- **物理卡点(降级默认继续中)**:① 缺霞鹜文楷 ttf → 印刷 PDF 中文留缺口,完整验收待字体;② 本机无 npm 工具链 → Vite 真交互未整跑(渲染截图验、PDF node 验、拓质栅格化无头浏览器实测)。
+
 ### 2026-08-14 · 里程碑 E:公开组件 API 入口 + README + 健壮性
 - **改了什么**:新增 `src/record/index.js` 单一可调用入口(建模/渲染/导出/占位数据 re-export + `createRecord(activities,{year,variant})` 便捷句柄 `yearSVG()/monthSVG(m)`);README 重写为「活动记录生成器 + CO 调用方式 + 占位契约 + 卡点」。
 - **状态**:✅ node 验公开 API + 健壮性 9 项全过:空数组/null/闰年二月/非法 variant 回退/单条/两变体全量都不崩。这落实北极星第三条腿「组件能被 CO 调用」——接 CO = 写 `fromCreativeOS` 适配器塞输入层。
