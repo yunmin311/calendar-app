@@ -12,6 +12,8 @@
     "preview": "vite preview",
     "electron:dev": "electron .",
     "electron:build": "npm run build && electron-builder",
+    "build:standalone": "node scripts/build-standalone.mjs",
+    "test:pdf": "node scripts/test-pdf.mjs",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
