@@ -79,6 +79,18 @@ export function sampleActivities(year = 2026) {
   return acts;
 }
 
+// 借 react-activity-calendar 的数据契约「形状」: 每天 = { date, count, level }
+//   · 只借形状, 不引那个库(它是一年一条 GitHub 方格带, 不是我们的 A1 版面)
+//   · count —— 当日聚合投入量(∑weight)
+//   · level —— 分档强度 ∈ [0, MAX_LEVEL]: 0=留白(没活动) / 1..4=着墨由浅到深
+//   · 里程碑(出版)另走朱砂印, 不占 level 通道
+export const MAX_LEVEL = 4;
+
+function levelFor(count, maxW) {
+  if (count <= 0) return 0;                                   // 留白
+  return Math.max(1, Math.min(MAX_LEVEL, Math.ceil((count / maxW) * MAX_LEVEL)));
+}
+
 // 按天聚合
 export function aggregateByDay(activities) {
   const by = {};
@@ -96,17 +108,30 @@ export function aggregateByDay(activities) {
   return by;
 }
 
-// 活动 → 渲染视图模型(供 renderRecord / exportPdf 共用)
-export function toRecordModel(activities, year = 2026, variant = 'editorial-rubbing') {
+// 活动数组 → 每日契约序列 [{ date, count, level, dominant, note, milestone }]
+// 这是「进 = CO 活动数据数组 → 出 = 每天强度」建模的落点(契约形状 = react-activity-calendar)
+export function toDailySeries(activities, year = 2026) {
   const by = aggregateByDay(activities);
-  const pal = PALETTES[variant] || PALETTES['editorial-rubbing'];
   const maxW = Math.max(1, ...Object.values(by).map((g) => g.weight));
+  const series = Object.entries(by).map(([date, g]) => ({
+    date, count: g.weight, level: levelFor(g.weight, maxW),
+    dominant: g.dominant, note: g.titles[0], milestone: g.milestone,
+  }));
+  series.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return { year, maxWeight: maxW, maxLevel: MAX_LEVEL, series };
+}
+
+// 活动 → 渲染视图模型(供 renderRecord / exportPdf 共用)
+// level 是唯一的强度真源: level→墨深(intensity), level 0 不落格(留白), 里程碑=朱砂
+export function toRecordModel(activities, year = 2026, variant = 'editorial-rubbing') {
+  const { maxWeight, series } = toDailySeries(activities, year);
+  const pal = PALETTES[variant] || PALETTES['editorial-rubbing'];
   const categories = ACTIVITY_TYPES.map((t) => ({ id: t.id, name: t.name, color: pal[t.id], render: 'fill' }));
   const days = {};
   const milestones = [];
-  for (const [date, g] of Object.entries(by)) {
-    days[date] = { categoryId: g.dominant, intensity: g.weight / maxW, note: g.titles[0] };
-    if (g.milestone) milestones.push({ date, label: g.milestone });
+  for (const s of series) {
+    if (s.level > 0) days[s.date] = { categoryId: s.dominant, count: s.count, level: s.level, intensity: s.level / MAX_LEVEL, note: s.note };
+    if (s.milestone) milestones.push({ date: s.date, label: s.milestone });
   }
-  return { year, variant, categories, days, milestones, maxWeight: maxW };
+  return { year, variant, categories, days, milestones, maxWeight, maxLevel: MAX_LEVEL };
 }
