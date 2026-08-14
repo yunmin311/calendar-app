@@ -10,6 +10,11 @@
 
 ## 台账
 
+### 2026-08-14 · 里程碑 E:公开组件 API 入口 + README + 健壮性
+- **改了什么**:新增 `src/record/index.js` 单一可调用入口(建模/渲染/导出/占位数据 re-export + `createRecord(activities,{year,variant})` 便捷句柄 `yearSVG()/monthSVG(m)`);README 重写为「活动记录生成器 + CO 调用方式 + 占位契约 + 卡点」。
+- **状态**:✅ node 验公开 API + 健壮性 9 项全过:空数组/null/闰年二月/非法 variant 回退/单条/两变体全量都不崩。这落实北极星第三条腿「组件能被 CO 调用」——接 CO = 写 `fromCreativeOS` 适配器塞输入层。
+- **卡点**:无新增。
+
 ### 2026-08-14 · 里程碑 D:拓质栅格化管线做扎实 + 浏览器路径实测
 - **改了什么**:`rasterizeRecordTexture` 加固——任何失败(Image/toBlob/getContext)优雅降级返回 null(不拖垮导出)、加载超时守卫、长边+面积双上限守卫、RGB→CMYK 注释;抽出 `buildTextureSVG`。
 - **状态**:✅ **无头 Edge 实测**导入真模块跑栅格化:产出带斑驳+剥蚀的拓质 PNG(72dpi 下 2401×1701px 尺寸精确),对照纯平涂纸明显有别 → ③ 从"代码就绪"升为"真 Chromium 端到端验证"。node 兜底两变体矢量 PDF 无回归(847×600mm)。
