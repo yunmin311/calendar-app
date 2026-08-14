@@ -86,9 +86,15 @@ export function sampleActivities(year = 2026) {
 //   · 里程碑(出版)另走朱砂印, 不占 level 通道
 export const MAX_LEVEL = 4;
 
+// 三条硬规则(见 docs/数据契约-占位.md):
+//   · 留白  —— 当天没活动(count=0) → level 0, 不落格(素纸留白, 讲"没做/远行")
+//   · 墨深  —— count>0 → level 1..4, 墨色由浅到深 = 当日投入由少到多
+//   · 里程碑 —— 出版(milestone)另走朱砂印通道, 不占 level; 里程碑当天仍可有普通活动着墨
+// 分档抗离群值: 小整数投入量直接成档; 投入量跨度大时才线性缩放到 1..MAX_LEVEL。
 function levelFor(count, maxW) {
-  if (count <= 0) return 0;                                   // 留白
-  return Math.max(1, Math.min(MAX_LEVEL, Math.ceil((count / maxW) * MAX_LEVEL)));
+  if (count <= 0) return 0;                                       // 留白
+  if (maxW <= MAX_LEVEL) return Math.min(MAX_LEVEL, count);       // 小整数: 投入量即档(1→浅…4→深)
+  return Math.max(1, Math.min(MAX_LEVEL, Math.round((count / maxW) * MAX_LEVEL))); // 大跨度: 线性缩放
 }
 
 // 按天聚合
