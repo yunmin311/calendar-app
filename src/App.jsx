@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { renderRecord } from './poster/renderRecord.js';
+import { renderMonth } from './poster/renderMonth.js';
 import { geometry, cellRect } from './poster/layout.js';
 import { MONTHS_ZH, daysInMonth, dow, iso } from './data/model.js';
 import { sampleActivities, toRecordModel, ACTIVITY_TYPES, MAX_LEVEL } from './data/activity.js';
@@ -16,11 +17,16 @@ const TYPE_NAME = Object.fromEntries(ACTIVITY_TYPES.map((t) => [t.id, t.name]));
 export default function App() {
   const [activities, setActivities] = useState(() => sampleActivities(YEAR));
   const [variant, setVariant] = useState('editorial-rubbing'); // B 默认; 可切 A 对照
+  const [view, setView] = useState('year');   // 'year' 整年长条 | 'month' 单月详情
+  const [monthSel, setMonthSel] = useState(0);
   const [sel, setSel] = useState(null); // {m, d}
   const [busy, setBusy] = useState('');
 
   const model = useMemo(() => toRecordModel(activities, YEAR, variant), [activities, variant]);
-  const svg = useMemo(() => renderRecord(model, { variant }), [model, variant]);
+  const svg = useMemo(
+    () => (view === 'year' ? renderRecord(model, { variant }) : renderMonth(model, monthSel, { variant })),
+    [model, variant, view, monthSel],
+  );
   const g = useMemo(() => geometry(), []);
 
   // 逐日检视: 点某天 → 拉出当天所有活动(从输入数组过滤, 只读)
@@ -44,6 +50,17 @@ export default function App() {
           <span className="bar__tag">方向② 暖·编辑 + 拓古材质(B)</span>
         </div>
         <div className="bar__r">
+          <div className="seg" role="group" aria-label="视图">
+            <button className={'seg__b' + (view === 'year' ? ' seg__b--on' : '')} onClick={() => setView('year')}>整年</button>
+            <button className={'seg__b' + (view === 'month' ? ' seg__b--on' : '')} onClick={() => setView('month')}>单月</button>
+          </div>
+          {view === 'month' && (
+            <div className="mnav">
+              <button className="btn btn--sm" onClick={() => setMonthSel((v) => (v + 11) % 12)}>‹</button>
+              <span className="mnav__l">{MONTHS_ZH[monthSel]}</span>
+              <button className="btn btn--sm" onClick={() => setMonthSel((v) => (v + 1) % 12)}>›</button>
+            </div>
+          )}
           <div className="seg" role="group" aria-label="变体">
             <button className={'seg__b' + (variant === 'editorial-rubbing' ? ' seg__b--on' : '')}
               onClick={() => setVariant('editorial-rubbing')}>B 暖·拓质</button>
@@ -60,23 +77,25 @@ export default function App() {
 
       <div className="work">
         <div className="stagewrap">
-          <div className="stage" style={{ aspectRatio: '841 / 594' }}>
+          <div className={'stage' + (view === 'month' ? ' stage--month' : '')} style={{ aspectRatio: view === 'year' ? '841 / 594' : '210 / 280' }}>
             <div className="poster" dangerouslySetInnerHTML={{ __html: svg }} />
-            <div className="overlay">
-              {Array.from({ length: 12 }).map((_, m) => {
-                const dim = daysInMonth(YEAR, m);
-                return Array.from({ length: dim }).map((__, i) => {
-                  const d = i + 1;
-                  const c = cellRect(g, m, d);
-                  const isSel = sel && sel.m === m && sel.d === d;
-                  return (
-                    <button key={`${m}-${d}`} className={'hit' + (isSel ? ' hit--sel' : '')}
-                      style={{ left: `${c.x / 841 * 100}%`, top: `${c.y / 594 * 100}%`, width: `${c.w / 841 * 100}%`, height: `${c.h / 594 * 100}%` }}
-                      title={`${m + 1}月${d}日`} onClick={() => setSel({ m, d })} />
-                  );
-                });
-              })}
-            </div>
+            {view === 'year' && (
+              <div className="overlay">
+                {Array.from({ length: 12 }).map((_, m) => {
+                  const dim = daysInMonth(YEAR, m);
+                  return Array.from({ length: dim }).map((__, i) => {
+                    const d = i + 1;
+                    const c = cellRect(g, m, d);
+                    const isSel = sel && sel.m === m && sel.d === d;
+                    return (
+                      <button key={`${m}-${d}`} className={'hit' + (isSel ? ' hit--sel' : '')}
+                        style={{ left: `${c.x / 841 * 100}%`, top: `${c.y / 594 * 100}%`, width: `${c.w / 841 * 100}%`, height: `${c.h / 594 * 100}%` }}
+                        title={`${m + 1}月${d}日`} onClick={() => { setSel({ m, d }); setMonthSel(m); }} />
+                    );
+                  });
+                })}
+              </div>
+            )}
           </div>
         </div>
 
