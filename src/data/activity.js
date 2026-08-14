@@ -16,15 +16,24 @@ export const ACTIVITY_TYPES = [
   { id: 'publish',  name: '出版' }, // 出版=里程碑级
 ];
 
-// 变体调色: 同一份活动数据 → 两种皮肤取不同色
+// 分类色系统(取真值 · 国画矿物色):五类各据一个矿物色相, 拉开可辨,
+// 但都压暗压浊, 叠在麦纸上 + 拓质正片叠底后自然柔和 —— 避开 AI 俗脸「奶油底+赤陶」。
+// 真值来源(传统国画/矿物颜料):
+//   设计=藤黄(gamboge, 矿物金黄) · 写作=赭石(hematite, 赤铁矿红褐)
+//   研究=花青(indigo, 靛蓝压浊) · 构建=石绿(malachite, 孔雀石绿) · 出版=朱砂印泥
+export const SEAL = '#9e3b32';        // 朱砂印泥红(里程碑/周日刻度), 印泥真值, 非荧光正红
 export const PALETTES = {
-  // B 暖·编辑+拓质: 暖色分类(沿用方向②)
+  // B 暖·编辑+拓质: 矿物分类色(格子按强度取 0.4~1.0 透明度, 故 hex 偏实, 落纸即柔)
   'editorial-rubbing': {
-    design: '#e3d3c4', writing: '#e8dcc0', research: '#dce6e2', build: '#dde3d2', publish: '#9e3b32',
+    design: '#c9a15a',   // 藤黄
+    writing: '#b5794f',  // 赭石
+    research: '#6f8ea0', // 花青
+    build: '#86a07e',    // 石绿
+    publish: SEAL,       // 朱砂(不作格底, 走朱砂印通道)
   },
   // A 全拓: 单色墨(类型不着色, 只用墨深浅), 出版=朱砂
   'tuogu-ink': {
-    design: '#211b14', writing: '#211b14', research: '#211b14', build: '#211b14', publish: '#9e3b32',
+    design: '#211b14', writing: '#211b14', research: '#211b14', build: '#211b14', publish: SEAL,
   },
 };
 
