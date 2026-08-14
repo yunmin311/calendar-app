@@ -1,3 +1,75 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* 线性年历 · 海报生成器 —— App 外壳(朴素;力气在导出的纸上) */
+:root{
+  --paper:#f4efe3; --paper2:#eaded0; --ink:#20201b; --ink-soft:#8c8371;
+  --line:#d9cfb9; --ochre:#c2902b; --teal:#2f5d57; --stage:#cabfa6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{font-family:Georgia,"Microsoft YaHei",system-ui,serif;color:var(--ink);background:var(--stage)}
+
+.app{display:flex;flex-direction:column;height:100%}
+
+/* 顶栏 */
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:10px 18px;background:var(--paper);border-bottom:1px solid var(--line)}
+.bar__l{display:flex;align-items:baseline;gap:12px;min-width:0}
+.bar__year{font-size:26px;font-weight:700;letter-spacing:.02em}
+.bar__title{font-family:"KaiTi","STKaiti",serif;font-size:18px;letter-spacing:.06em}
+.bar__tag{font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+.bar__r{display:flex;gap:8px;align-items:center;flex-shrink:0}
+
+.btn{font-family:inherit;font-size:13px;padding:7px 12px;border:1px solid var(--line);
+  background:#fff;color:var(--ink);border-radius:2px;cursor:pointer;transition:.12s}
+.btn:hover{border-color:var(--ink-soft)}
+.btn--primary{background:var(--ochre);border-color:var(--ochre);color:#fff;font-weight:600}
+.btn--primary:hover{filter:brightness(.95)}
+.btn--ghost{background:transparent}
+.btn--sm{font-size:12px;padding:5px 9px}
+
+.toast{padding:6px 18px;background:#fbf3df;border-bottom:1px solid var(--line);font-size:13px;color:#7a5a12}
+
+/* 工作区 */
+.work{flex:1;display:flex;min-height:0}
+.stagewrap{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;
+  padding:22px;overflow:auto;background:var(--stage)}
+.stage{position:relative;width:min(100%,1400px);background:var(--paper);
+  box-shadow:0 18px 44px rgba(60,45,20,.28)}
+.poster{width:100%}
+.poster svg{display:block;width:100%;height:auto}
+
+/* 点选覆盖层 */
+.overlay{position:absolute;inset:0}
+.hit{position:absolute;padding:0;margin:0;border:0;background:transparent;cursor:pointer;
+  outline:0;border-radius:1px;transition:background .1s}
+.hit:hover{background:rgba(194,144,43,.14)}
+.hit--sel{background:rgba(194,144,43,.10);outline:1.5px solid var(--ochre);outline-offset:-1px}
+
+/* 右侧编辑栏 */
+.panel{width:290px;flex-shrink:0;background:var(--paper);border-left:1px solid var(--line);
+  display:flex;flex-direction:column;padding:18px 16px}
+.panel__hint{color:var(--ink-soft);font-size:14px;line-height:1.9;margin-top:8px}
+.editor{display:flex;flex-direction:column;gap:16px}
+.editor__date{font-family:"KaiTi","STKaiti",serif;font-size:20px}
+.editor__wk{font-size:13px;color:var(--ink-soft);margin-left:6px}
+.fld{display:flex;flex-direction:column;gap:7px;font-size:13px;color:var(--ink-soft)}
+.fld input{font-family:inherit;font-size:14px;color:var(--ink);padding:7px 9px;
+  border:1px solid var(--line);border-radius:2px;background:#fff}
+.fld input:focus{outline:0;border-color:var(--ochre)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:13px;
+  padding:5px 9px;border:1px solid var(--line);background:#fff;border-radius:2px;cursor:pointer}
+.chip--on{border-color:var(--ochre);background:#fbf3df}
+.chip__sw{width:11px;height:11px;border-radius:2px;display:inline-block}
+.ms{display:flex;gap:6px}
+.ms input{flex:1;font-family:inherit;font-size:14px;padding:6px 9px;border:1px solid var(--line);border-radius:2px}
+.editor__close{align-self:flex-start;margin-top:2px}
+.panel__foot{margin-top:auto;padding-top:14px;font-size:11.5px;color:var(--ink-soft);
+  line-height:1.6;border-top:1px solid var(--line)}
+
+/* 打印(临时): 只留海报, 走 A1 横向 */
+@media print{
+  @page{size:A1 landscape;margin:0}
+  .bar,.panel,.toast,.overlay{display:none !important}
+  body,.app,.work,.stagewrap{height:auto;background:#fff;padding:0;margin:0;display:block}
+  .stage{width:100%;box-shadow:none}
+}

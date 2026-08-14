@@ -1,245 +1,144 @@
-import React, { useState, useMemo } from 'react';
-import { Printer, ChevronLeft, ChevronRight, Eraser, Info, Palette } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { posterSVG } from './poster/renderPoster.js';
+import { geometry, cellRect } from './poster/layout.js';
+import { theme } from './poster/theme.js';
+import {
+  loadModel, saveModel, sampleModel, emptyModel,
+  MONTHS_ZH, daysInMonth, dow, iso,
+} from './data/model.js';
+import { exportPosterPDF } from './poster/exportPdf.js';
 
-// 定义高亮颜色选项
-const COLORS = [
-  { id: 'none', value: 'transparent', label: '无颜色', tailwind: 'bg-transparent' },
-  { id: 'red', value: '#fee2e2', label: '红色', tailwind: 'bg-red-100' },
-  { id: 'orange', value: '#ffedd5', label: '橙色', tailwind: 'bg-orange-100' },
-  { id: 'yellow', value: '#fef9c3', label: '黄色', tailwind: 'bg-yellow-100' },
-  { id: 'green', value: '#dcfce7', label: '绿色', tailwind: 'bg-green-100' },
-  { id: 'blue', value: '#dbeafe', label: '蓝色', tailwind: 'bg-blue-100' },
-  { id: 'purple', value: '#f3e8ff', label: '紫色', tailwind: 'bg-purple-100' },
-  { id: 'pink', value: '#fce7f3', label: '粉色', tailwind: 'bg-pink-100' },
-];
-
-const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-const DAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+const YEAR = 2026;
+const WK = ['日', '一', '二', '三', '四', '五', '六'];
 
 export default function App() {
-  const [year, setYear] = useState(2026);
-  const [activeColor, setActiveColor] = useState('none');
-  const [cellData, setCellData] = useState({}); // 格式: { "2026-0-15": { text: "开会", color: "bg-red-100" } }
+  const [model, setModel] = useState(() => loadModel(YEAR));
+  const [sel, setSel] = useState(null); // {m, d}
+  const [busy, setBusy] = useState('');
 
-  // 辅助函数：判断日期是否有效（比如2月30日是无效的）
-  const isValidDate = (y, m, d) => {
-    const date = new Date(y, m, d);
-    return date.getFullYear() === y && date.getMonth() === m && date.getDate() === d;
-  };
+  useEffect(() => { saveModel(model); }, [model]);
 
-  // 辅助函数：获取星期几
-  const getDayOfWeek = (y, m, d) => {
-    return new Date(y, m, d).getDay();
-  };
+  const svg = useMemo(() => posterSVG(model), [model]);
+  const g = useMemo(() => geometry(), []);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // 更新某天
+  const patchDay = (m, d, patch) => setModel((prev) => {
+    const key = iso(YEAR, m, d);
+    const days = { ...prev.days };
+    const next = { ...(days[key] || {}), ...patch };
+    // 清掉空字段
+    if (next.note === '') delete next.note;
+    if (!next.categoryId) delete next.categoryId;
+    if (Object.keys(next).length === 0) delete days[key]; else days[key] = next;
+    return { ...prev, days };
+  });
 
-  const changeYear = (delta) => {
-    setYear((prev) => prev + delta);
-  };
+  const toggleMilestone = (m, d, label) => setModel((prev) => {
+    const date = iso(YEAR, m, d);
+    const exists = prev.milestones.find((x) => x.date === date);
+    let milestones;
+    if (exists) milestones = prev.milestones.filter((x) => x.date !== date);
+    else milestones = [...prev.milestones, { date, label: label || '里程碑' }];
+    return { ...prev, milestones };
+  });
+  const setMilestoneLabel = (m, d, label) => setModel((prev) => ({
+    ...prev,
+    milestones: prev.milestones.map((x) => (x.date === iso(YEAR, m, d) ? { ...x, label } : x)),
+  }));
 
-  const handleCellClick = (month, day) => {
-    if (activeColor === 'none') return;
-    
-    const key = `${year}-${month}-${day}`;
-    const selectedColorTw = COLORS.find(c => c.id === activeColor)?.tailwind || 'bg-transparent';
-    
-    setCellData(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        color: selectedColorTw === 'bg-transparent' ? undefined : selectedColorTw
-      }
-    }));
-  };
+  const selRec = sel ? (model.days[iso(YEAR, sel.m, sel.d)] || {}) : null;
+  const selMs = sel ? model.milestones.find((x) => x.date === iso(YEAR, sel.m, sel.d)) : null;
 
-  const handleTextChange = (month, day, text) => {
-    const key = `${year}-${month}-${day}`;
-    setCellData(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        text: text
-      }
-    }));
-  };
-
-  const clearAll = () => {
-    if (window.confirm(`确定要清空 ${year} 年的所有数据吗？`)) {
-      setCellData({});
-    }
-  };
-
-  // 渲染表头
-  const renderHeader = () => (
-    <thead>
-      <tr>
-        <th className="sticky top-0 left-0 z-30 bg-gray-100 border-b border-r border-gray-300 w-12 p-2 shadow-[2px_2px_0px_rgba(0,0,0,0.05)] print:shadow-none print:bg-gray-100">
-          日期
-        </th>
-        {MONTHS.map((month, index) => (
-          <th key={index} className="sticky top-0 z-20 bg-gray-100 border-b border-r border-gray-300 min-w-[140px] p-2 text-center text-gray-700 font-bold print:bg-gray-100">
-            {month}
-          </th>
-        ))}
-      </tr>
-    </thead>
-  );
-
-  // 渲染日历主体
-  const renderBody = () => {
-    const rows = [];
-    for (let day = 1; day <= 31; day++) {
-      rows.push(
-        <tr key={day} className="hover:bg-gray-50 transition-colors print:hover:bg-transparent">
-          {/* 左侧固定的天数 */}
-          <td className="sticky left-0 z-10 bg-white border-b border-r border-gray-300 text-center font-bold text-gray-600 shadow-[2px_0px_0px_rgba(0,0,0,0.05)] print:shadow-none print:bg-white">
-            {day}
-          </td>
-          
-          {/* 每月的单元格 */}
-          {Array.from({ length: 12 }).map((_, month) => {
-            const valid = isValidDate(year, month, day);
-            const dow = valid ? getDayOfWeek(year, month, day) : -1;
-            const isWeekend = dow === 0 || dow === 6;
-            const isSunday = dow === 0;
-            
-            const key = `${year}-${month}-${day}`;
-            const data = cellData[key] || {};
-            const bgColorTw = data.color || (isWeekend ? 'bg-gray-50 print:bg-gray-100' : 'bg-white');
-
-            if (!valid) {
-              return <td key={month} className="border-b border-r border-gray-300 bg-gray-200 print:bg-gray-300"></td>;
-            }
-
-            return (
-              <td 
-                key={month} 
-                className={`border-b border-r border-gray-300 relative cursor-text group ${bgColorTw}`}
-                onClick={() => handleCellClick(month, day)}
-              >
-                <div className="flex items-center h-full w-full p-1 gap-1">
-                  <span className={`text-xs w-4 flex-shrink-0 text-center select-none ${isSunday ? 'text-red-500 font-bold' : isWeekend ? 'text-blue-500 font-bold' : 'text-gray-400'}`}>
-                    {DAY_NAMES[dow]}
-                  </span>
-                  <input
-                    type="text"
-                    className="flex-1 w-full bg-transparent outline-none text-sm text-gray-800 placeholder-gray-300 focus:placeholder-transparent"
-                    placeholder="输入..."
-                    value={data.text || ''}
-                    onChange={(e) => handleTextChange(month, day, e.target.value)}
-                    onClick={(e) => {
-                      // 如果选中了画笔颜色，阻止输入框聚焦，优先涂色
-                      if (activeColor !== 'none') {
-                        e.preventDefault();
-                        e.target.blur();
-                      } else {
-                        e.stopPropagation();
-                      }
-                    }}
-                  />
-                </div>
-              </td>
-            );
-          })}
-        </tr>
-      );
-    }
-    return <tbody>{rows}</tbody>;
+  const doExport = async () => {
+    setBusy('正在生成印刷级 PDF…');
+    try { await exportPosterPDF(model); setBusy(''); }
+    catch (e) { console.error(e); setBusy('导出未完成: ' + (e?.message || e)); }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-900">
-      {/* 打印时隐藏的全局打印样式 */}
-      <style>
-        {`
-          @media print {
-            @page { size: landscape; margin: 10mm; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            ::-webkit-scrollbar { display: none; }
-            input::placeholder { color: transparent !important; }
-          }
-        `}
-      </style>
-
-      {/* 顶部控制栏 - 打印时隐藏 */}
-      <div className="print:hidden bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-50">
-        
-        {/* 年份切换 & 标题 */}
-        <div className="flex items-center gap-4">
-          <button onClick={() => changeYear(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ChevronLeft size={20} className="text-gray-600" />
-          </button>
-          <h1 className="text-2xl font-black text-gray-800 tracking-wider">
-            {year} 线性日历 <span className="text-sm font-normal text-gray-500 ml-2">全局规划工具</span>
-          </h1>
-          <button onClick={() => changeYear(1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ChevronRight size={20} className="text-gray-600" />
-          </button>
+    <div className="app">
+      <header className="bar">
+        <div className="bar__l">
+          <span className="bar__year">{YEAR}</span>
+          <span className="bar__title">线性年历 · 海报生成器</span>
+          <span className="bar__tag">方向② 暖·手作·编辑</span>
         </div>
-
-        {/* 工具栏 */}
-        <div className="flex items-center gap-6">
-          {/* 画笔工具 */}
-          <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
-            <Palette size={16} className="text-gray-500 ml-1" />
-            <div className="w-px h-4 bg-gray-300 mx-1"></div>
-            {COLORS.map((c) => (
-              <button
-                key={c.id}
-                title={c.label}
-                onClick={() => setActiveColor(c.id)}
-                className={`w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center
-                  ${c.id === 'none' ? 'bg-white border-dashed border-gray-400' : 'border-transparent'} 
-                  ${activeColor === c.id ? 'ring-2 ring-offset-1 ring-blue-500 scale-110' : 'hover:scale-110'}
-                `}
-                style={c.id !== 'none' ? { backgroundColor: c.value } : {}}
-              >
-                {c.id === 'none' && <Eraser size={12} className="text-gray-500" />}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-px h-6 bg-gray-300"></div>
-
-          {/* 常用按钮 */}
-          <button 
-            onClick={clearAll}
-            className="text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-md transition-colors"
-          >
-            清空内容
-          </button>
-          
-          <button 
-            onClick={handlePrint}
-            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors shadow-sm font-medium"
-          >
-            <Printer size={18} />
-            <span>横向打印</span>
-          </button>
+        <div className="bar__r">
+          <button className="btn" onClick={() => window.print()}>打印预览</button>
+          <button className="btn btn--primary" onClick={doExport}>导出印刷 PDF ▸</button>
+          <button className="btn btn--ghost" onClick={() => { setModel(sampleModel(YEAR)); setSel(null); }}>重置示例</button>
+          <button className="btn btn--ghost" onClick={() => { if (confirm('清空全部内容?')) { setModel(emptyModel(YEAR)); setSel(null); } }}>清空</button>
         </div>
-      </div>
+      </header>
 
-      {/* 操作提示 - 打印时隐藏 */}
-      <div className="print:hidden bg-blue-50 border-b border-blue-100 px-6 py-2 flex items-center gap-2 text-sm text-blue-700">
-        <Info size={16} />
-        <p><strong>使用技巧：</strong> 1. 直接在表格中输入文字做计划； 2. 在上方选择颜色，点击单元格可进行高亮标记（适合习惯打卡）； 3. 点击“横向打印”即可输出完美A4排版。</p>
-      </div>
+      {busy && <div className="toast">{busy}</div>}
 
-      {/* 日历主体内容区 */}
-      <div className="flex-1 overflow-auto p-4 md:p-6 print:p-0 print:overflow-visible">
-        <div className="bg-white border border-gray-300 rounded-xl overflow-hidden shadow-sm print:shadow-none print:border-none print:rounded-none mx-auto max-w-[1400px]">
-          <div className="overflow-x-auto print:overflow-visible">
-            <table className="w-full border-collapse min-w-[1200px] print:min-w-full text-sm">
-              {renderHeader()}
-              {renderBody()}
-            </table>
+      <div className="work">
+        <div className="stagewrap">
+          <div className="stage" style={{ aspectRatio: '841 / 594' }}>
+            <div className="poster" dangerouslySetInnerHTML={{ __html: svg }} />
+            <div className="overlay">
+              {Array.from({ length: 12 }).map((_, m) => {
+                const dim = daysInMonth(YEAR, m);
+                return Array.from({ length: dim }).map((__, i) => {
+                  const d = i + 1;
+                  const c = cellRect(g, m, d);
+                  const isSel = sel && sel.m === m && sel.d === d;
+                  return (
+                    <button key={`${m}-${d}`} className={'hit' + (isSel ? ' hit--sel' : '')}
+                      style={{ left: `${c.x / 841 * 100}%`, top: `${c.y / 594 * 100}%`, width: `${c.w / 841 * 100}%`, height: `${c.h / 594 * 100}%` }}
+                      title={`${m + 1}月${d}日`} onClick={() => setSel({ m, d })} />
+                  );
+                });
+              })}
+            </div>
           </div>
         </div>
+
+        <aside className="panel">
+          {!sel && <div className="panel__hint">点海报上任意一天 →<br />在这里写备注、分类、设里程碑。<br /><br />屏幕编辑刻意做得朴素;<br />力气都在导出的那张纸上。</div>}
+          {sel && (
+            <div className="editor">
+              <div className="editor__date">
+                {MONTHS_ZH[sel.m]} {sel.d} 日 <span className="editor__wk">周{WK[dow(YEAR, sel.m, sel.d)]}</span>
+              </div>
+
+              <label className="fld">备注
+                <input type="text" value={selRec.note || ''} placeholder="一句话…"
+                  onChange={(e) => patchDay(sel.m, sel.d, { note: e.target.value })} />
+              </label>
+
+              <div className="fld">分类(密度即纹理)
+                <div className="chips">
+                  <button className={'chip' + (!selRec.categoryId ? ' chip--on' : '')} onClick={() => patchDay(sel.m, sel.d, { categoryId: undefined })}>无</button>
+                  {model.categories.map((cat) => (
+                    <button key={cat.id} className={'chip' + (selRec.categoryId === cat.id ? ' chip--on' : '')}
+                      onClick={() => patchDay(sel.m, sel.d, { categoryId: cat.id })}>
+                      <span className="chip__sw" style={{ background: cat.color }} />{cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="fld">里程碑(排版锚点)
+                {!selMs && <button className="btn btn--sm" onClick={() => toggleMilestone(sel.m, sel.d)}>＋ 设为里程碑</button>}
+                {selMs && (
+                  <div className="ms">
+                    <input type="text" value={selMs.label} onChange={(e) => setMilestoneLabel(sel.m, sel.d, e.target.value)} />
+                    <button className="btn btn--sm btn--ghost" onClick={() => toggleMilestone(sel.m, sel.d)}>移除</button>
+                  </div>
+                )}
+              </div>
+
+              <button className="btn btn--ghost btn--sm editor__close" onClick={() => setSel(null)}>关闭</button>
+            </div>
+          )}
+
+          <div className="panel__foot">
+            数据自动存本机(localStorage) · 屏幕用系统字, 导出换 OFL 嵌入款
+          </div>
+        </aside>
       </div>
-      
     </div>
   );
 }
