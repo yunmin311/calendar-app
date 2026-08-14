@@ -142,27 +142,18 @@ export async function exportPosterPDF(model) {
 //   feTurbulence 滤镜进 PDF 不保持矢量 → 导出前把「纸+拓质」单独栅格化成 ≥300dpi 位图,
 //   作背景嵌入; 文字/线/色块全部保持矢量画在其上(色块用 <1 透明度, 拓质从底下透上来)。
 // 仅浏览器可栅格化(需 canvas); node 无 canvas → 返回 null, 退化为纯矢量(纸=平涂)。
-export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', dpi = 300 } = {}) {
-  if (typeof document === 'undefined' || typeof Image === 'undefined') return null; // node: 跳过
+// 生成「纸+拓质」背景 PNG 字节。注意: 输出是 RGB PNG(pdf-lib 只吃 RGB/灰度), 印刷时由 RIP 转 CMYK;
+// 矢量层(文字/线/色块/裁切标)才是真 CMYK。做扎实: 任何失败都返回 null → 上层退化纯矢量, 绝不拖垮导出。
+export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', pxW, pxH }) {
   const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
-  const MAXPX = 12000; // canvas 长边上限(A1+出血 @300dpi≈10004px, 尚在范围内)
-  let scale = dpi / 25.4;
-  let pxW = Math.round(mediaWmm * scale), pxH = Math.round(mediaHmm * scale);
-  const longest = Math.max(pxW, pxH);
-  if (longest > MAXPX) { // 超限则回退 dpi, 并如实记录实际 dpi
-    const k = MAXPX / longest; pxW = Math.round(pxW * k); pxH = Math.round(pxH * k);
-    // eslint-disable-next-line no-console
-    console.warn(`[拓质栅格化] ${dpi}dpi 超 canvas 上限, 实际降到 ${Math.round(dpi * k)}dpi`);
-  }
-  // 与 renderRecord 同参的纹理 SVG(mm 视口 → 频率与屏幕一致): 纸底 + 大斑块 mottle(正片叠底) + 剥蚀 speckle(滤色)
   const speckleFilter = c.speckle
     ? `<filter id="sp"><feTurbulence type="fractalNoise" baseFrequency="0.14" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1.5 1.5 1.5 0 -1.3"/></filter>`
     : '';
   const speckleRect = c.speckle
     ? `<rect width="${mediaWmm}" height="${mediaHmm}" filter="url(#sp)" opacity="${c.speckleOp}" style="mix-blend-mode:screen"/>`
     : '';
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${mediaWmm} ${mediaHmm}" width="${pxW}" height="${pxH}" preserveAspectRatio="none">`
+  // mm 视口 → 频率与屏幕渲染一致: 纸底 + 大斑块 mottle(正片叠底) + 剥蚀 speckle(滤色)
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${mediaWmm} ${mediaHmm}" width="${pxW}" height="${pxH}" preserveAspectRatio="none">`
     + `<defs>`
     + `<filter id="mo" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${c.texFreq}" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>`
     + speckleFilter
@@ -171,19 +162,45 @@ export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'ed
     + `<rect width="${mediaWmm}" height="${mediaHmm}" filter="url(#mo)" opacity="${c.texOp}" style="mix-blend-mode:multiply"/>`
     + speckleRect
     + `</svg>`;
+}
 
-  const img = await new Promise((resolve, reject) => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = reject;
-    im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-  const canvas = document.createElement('canvas');
-  canvas.width = pxW; canvas.height = pxH;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, pxW, pxH);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  return new Uint8Array(await blob.arrayBuffer());
+export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', dpi = 300, timeoutMs = 15000 } = {}) {
+  try {
+    if (typeof document === 'undefined' || typeof Image === 'undefined') return null; // node: 跳过, 走矢量退化
+    const MAXPX = 12000;          // canvas 长边上限(A1+出血 @300dpi≈10004px)
+    const MAXAREA = 90 * 1e6;     // 面积上限 ~90MP(超则再压, 防个别浏览器 canvas 面积限)
+    const scale0 = Math.max(1, dpi) / 25.4;
+    let pxW = Math.round(mediaWmm * scale0), pxH = Math.round(mediaHmm * scale0);
+    let effDpi = dpi;
+    const longest = Math.max(pxW, pxH);
+    if (longest > MAXPX) { const k = MAXPX / longest; pxW = Math.round(pxW * k); pxH = Math.round(pxH * k); effDpi = Math.round(effDpi * k); }
+    if (pxW * pxH > MAXAREA) { const k = Math.sqrt(MAXAREA / (pxW * pxH)); pxW = Math.round(pxW * k); pxH = Math.round(pxH * k); effDpi = Math.round(effDpi * k); }
+    if (effDpi < dpi) console.warn(`[拓质栅格化] ${dpi}dpi 超上限, 实际 ${effDpi}dpi (${pxW}x${pxH})`);
+
+    const svg = buildTextureSVG({ mediaWmm, mediaHmm, variant, pxW, pxH });
+    const img = await new Promise((resolve) => {
+      let done = false;
+      const finish = (v) => { if (!done) { done = true; resolve(v); } };
+      const im = new Image();
+      im.onload = () => finish(im);
+      im.onerror = () => finish(null);
+      setTimeout(() => finish(null), timeoutMs); // 超时守卫: 湍流巨图卡住就退化
+      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+    if (!img) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = pxW; canvas.height = pxH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, pxW, pxH);
+    const blob = await new Promise((resolve) => { try { canvas.toBlob(resolve, 'image/png'); } catch { resolve(null); } });
+    if (!blob) return null;
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch (e) {
+    console.warn('[拓质栅格化] 失败, 退化纯矢量:', e?.message || e);
+    return null;
+  }
 }
 
 export async function buildRecordPdfBytes(model, opts = {}) {
