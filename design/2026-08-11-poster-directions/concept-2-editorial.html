@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向② 暖·编辑 · 2026 线性年历 A1</title>
+<style>
+  /* ============ 概念② 暖 · 手作 · 编辑 / Editorial Almanac ============
+     刻意避开 AI 俗脸「奶油底+默认衬线+赤陶」:
+        底=暖纸(带真实纸纹, SVG 噪声内嵌, 非渐变)  墨=炭黑  强调=赭黄 + 墨绿(非赤陶)
+        字=Georgia 老式数字 + 楷体大字出笔锋   横向发丝分隔, 无竖网格 → 年鉴/文本感
+     性格预算全花在「楷体月份 + 纸纹材质」这一处
+     字号两极制: 大而轻的月份名(display serif)  vs  小而稳的老式数字(caption)
+  ==================================================================== */
+  :root{
+    --paper:#f4efe3;        /* 暖纸(非奶油白, 更偏麦色) */
+    --paper2:#efe8d9;       /* 周末稍深 */
+    --ink:#20201b;          /* 炭墨 */
+    --ink-soft:#8c8371;     /* 次级 */
+    --line:#d9cfb9;         /* 发丝分隔 */
+    --ochre:#c2902b;        /* 强调一: 赭黄(非赤陶) */
+    --teal:#2f5d57;         /* 强调二: 墨绿 */
+    --cat-work:#e8dcc0;     /* 冲刺底纹 */
+    --cat-travel:#dce6e2;   /* 远行 */
+    --stage:#cabfa6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--stage);color:var(--ink);
+    font-family:Georgia,"Times New Roman","Songti SC",serif;
+    display:flex;flex-direction:column;align-items:center;padding:3vh 2vw;gap:1.4vh;min-height:100%;
+  }
+  .caption{font-size:12px;letter-spacing:.1em;color:#5a5140}
+  .caption b{color:#2a2419}
+
+  .poster{
+    width:min(1580px,96vw);aspect-ratio:841/594;
+    background:var(--paper);container-type:size;position:relative;overflow:hidden;
+    box-shadow:0 3vh 6vh rgba(60,45,20,.30);
+  }
+  /* 纸纹: 内嵌 SVG 湍流噪声, 极低透明度当材质, 非背景渐变 */
+  .poster::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/></svg>");}
+  .frame{position:absolute;inset:0;padding:4.4cqh 3.4cqw 3.6cqh;display:flex;flex-direction:column;z-index:1}
+
+  /* ---- 报头 masthead ---- */
+  .head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:2.2cqh;border-bottom:.2cqh solid var(--ink)}
+  .head__l{display:flex;align-items:baseline;gap:1.4cqw}
+  .head__year{font-size:8.4cqh;line-height:.8;font-weight:400;letter-spacing:.01em;font-variant-numeric:oldstyle-nums lining-nums}
+  .head__t{font-family:"KaiTi","STKaiti","楷体",Georgia,serif;font-size:3.4cqh;letter-spacing:.28em;color:var(--ink)}
+  .head__r{text-align:right;font-size:1.5cqh;color:var(--ink-soft);line-height:1.7;letter-spacing:.04em}
+  .head__r b{color:var(--ink)}
+  .head__r i{color:var(--ochre);font-style:italic}
+
+  /* ---- 年历: 横向发丝分隔, 无竖线 ---- */
+  .cal{flex:1;display:grid;
+    grid-template-columns:9cqw repeat(31,1fr);
+    grid-template-rows:2.8cqh repeat(12,1fr);
+    margin-top:2.4cqh;column-gap:0;row-gap:0;}
+  .axis{display:flex;align-items:center;justify-content:center;font-size:1.15cqh;color:var(--ink-soft);
+    font-variant-numeric:oldstyle-nums;border-bottom:.14cqh solid var(--ink)}
+  .corner{border-bottom:.14cqh solid var(--ink)}
+  .mlabel{display:flex;align-items:center;gap:.7cqw;border-bottom:.1cqh solid var(--line)}
+  .mname{font-family:"KaiTi","STKaiti","楷体",serif;font-size:2.7cqh;color:var(--ink);letter-spacing:.06em}
+  .mnum{font-size:1.2cqh;color:var(--ochre);font-variant-numeric:oldstyle-nums;letter-spacing:.05em}
+  .cell{position:relative;border-bottom:.1cqh solid var(--line)}
+  .cell.is-weekend{background:var(--paper2)}
+  .cell.is-sunday::before{content:"";position:absolute;left:0;top:.4cqh;bottom:.4cqh;width:.22cqw;background:var(--ochre)}
+  .cell.is-invalid{background:transparent}
+  .cell.is-invalid::after{content:"";position:absolute;inset:22% 30%;border-bottom:.1cqh solid var(--line);transform:rotate(-20deg);opacity:.5}
+  .cell.cat-work{background:var(--cat-work)}
+  .cell.cat-travel{background:var(--cat-travel)}
+  .cell.cat-streak::after{content:"·";position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);
+    font-size:2.4cqh;color:var(--teal);line-height:0}
+  /* 里程碑 = 赭黄星标 + 楷体斜排标签 */
+  .cell.has-ms{z-index:3;overflow:visible}
+  .ms__dot{position:absolute;left:.35cqw;top:.5cqh;font-size:1.7cqh;color:var(--ochre);line-height:1}
+  .ms__label{position:absolute;left:.35cqw;top:2.2cqh;white-space:nowrap;font-family:"KaiTi","STKaiti","楷体",serif;
+    font-size:1.45cqh;color:var(--ink);letter-spacing:.04em}
+
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:2cqh;padding-top:1.5cqh;
+    border-top:.14cqh solid var(--line);font-size:1.35cqh;color:var(--ink-soft);letter-spacing:.03em}
+  .legend{display:flex;gap:2cqw;align-items:center}
+  .lg{display:flex;gap:.5cqw;align-items:center}
+  .sw{width:1.3cqw;height:1.3cqh;display:inline-block}
+  .sw.oc{background:var(--ochre)} .sw.wo{background:var(--cat-work)} .sw.tv{background:var(--cat-travel)} .sw.te{background:var(--teal)}
+  .foot__spec i{font-style:italic;color:var(--ochre)}
+
+  @media print{
+    @page{size:A1 landscape;margin:0}
+    body{background:#fff;padding:0}.caption{display:none}
+    .poster{width:100%;height:100%;box-shadow:none;aspect-ratio:auto}
+  }
+</style>
+</head>
+<body>
+  <div class="caption">方向② · <b>暖 · 手作 · 编辑</b> · A1 841×594mm 横向 · 双击可 Ctrl+P 看印刷预览</div>
+  <div class="poster">
+    <div class="frame">
+      <div class="head">
+        <div class="head__l">
+          <div class="head__year">2026</div>
+          <div class="head__t">线性年历</div>
+        </div>
+        <div class="head__r">
+          <div>年度叙事 · <i>一纸看尽</i></div>
+          <div>Format <b>A1</b> · 841×594&nbsp;mm</div>
+          <div>Almanac Edition</div>
+        </div>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="foot">
+        <div class="legend">
+          <span class="lg"><span class="sw oc"></span>里程碑</span>
+          <span class="lg"><span class="sw wo"></span>冲刺期</span>
+          <span class="lg"><span class="sw tv"></span>远行</span>
+          <span class="lg"><span class="sw te"></span>打卡</span>
+        </div>
+        <div class="foot__spec">印刷级 · <i>CMYK · 3mm 出血 · 嵌字</i></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const YEAR=2026;
+const MZH=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const MNUM=['01','02','03','04','05','06','07','08','09','10','11','12'];
+const MILESTONES=[{m:1,d:14,zh:'展览开幕'},{m:4,d:1,zh:'新作发布'},{m:7,d:20,zh:'远行'},{m:10,d:25,zh:'年终复盘'}];
+function catFor(m,d){
+  if(m===2&&d>=2&&d<=20)return'work';
+  if(m===7&&d>=8&&d<=16)return'travel';
+  if(m===11&&d>=1&&d<=12)return'work';
+  if(m===0||m===5)return'streak';
+  if(((m*31+d)%9)===0)return'work';
+  return null;
+}
+function isValid(y,m,d){const dt=new Date(y,m,d);return dt.getMonth()===m;}
+function el(t,c){const e=document.createElement(t);if(c)e.className=c;return e;}
+const cal=document.getElementById('cal');
+const corner=el('div','corner');corner.style.gridArea='1/1';cal.appendChild(corner);
+for(let d=1;d<=31;d++){const a=el('div','axis');a.textContent=d;a.style.gridRow=1;a.style.gridColumn=d+1;cal.appendChild(a);}
+for(let m=0;m<12;m++){
+  const lab=el('div','mlabel');lab.innerHTML=`<span class="mname">${MZH[m]}</span><span class="mnum">${MNUM[m]}</span>`;
+  lab.style.gridRow=m+2;lab.style.gridColumn=1;cal.appendChild(lab);
+  for(let d=1;d<=31;d++){
+    const cell=el('div','cell');cell.style.gridRow=m+2;cell.style.gridColumn=d+1;
+    if(!isValid(YEAR,m,d)){cell.classList.add('is-invalid');cal.appendChild(cell);continue;}
+    const dow=new Date(YEAR,m,d).getDay();
+    if(dow===0||dow===6)cell.classList.add('is-weekend');
+    if(dow===0)cell.classList.add('is-sunday');
+    const cat=catFor(m,d);if(cat)cell.classList.add('cat-'+cat);
+    const ms=MILESTONES.find(x=>x.m===m&&x.d===d);
+    if(ms){cell.classList.add('has-ms');cell.innerHTML=`<span class="ms__dot">✳</span><span class="ms__label">${ms.zh}</span>`;}
+    cal.appendChild(cell);
+  }
+}
+</script>
+</body>
+</html>

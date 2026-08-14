@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向③ 工业 mono · 2026 线性年历 A1</title>
+<style>
+  /* ============ 概念③ 工业 mono / Brutalist Data-Sheet ============
+     刻意避开 AI 俗脸「黑底荧光绿」:
+        底=水泥纸  线=粗黑  强调=安全橙(工业危险色, 非荧光绿)
+        字=等宽 Consolas/Courier 全大写  厚外框 + 轴刻度 + 四角裁切/套准标(顺带演「印刷/裁切标」卖点)
+     性格预算全花在「粗黑规则线 + 裁切标 + 等宽数据」这一处
+     字号两极制: 巨大等宽月份码(display)  vs  密而稳的等宽刻度(caption)
+  ================================================================ */
+  :root{
+    --paper:#e7e3da;        /* 水泥纸 */
+    --paper2:#dcd7cb;       /* 周末 */
+    --ink:#131311;          /* 粗黑 */
+    --ink-soft:#6f6b61;
+    --orange:#ff5a00;       /* 安全橙 */
+    --cat-work:#d3cdbd;
+    --cat-travel:#cdd6cf;
+    --stage:#b7b2a5;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--stage);color:var(--ink);
+    font-family:"Consolas","Cascadia Mono","Courier New","Lucida Console",monospace;
+    display:flex;flex-direction:column;align-items:center;padding:3vh 2vw;gap:1.4vh;min-height:100%;
+  }
+  .caption{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#4a463d}
+  .caption b{color:#161512}
+
+  .poster{
+    width:min(1580px,96vw);aspect-ratio:841/594;
+    background:var(--paper);container-type:size;position:relative;overflow:hidden;
+    box-shadow:0 3vh 6vh rgba(0,0,0,.32);
+  }
+  /* 四角裁切标 + 套准标 */
+  .crop{position:absolute;width:2.4cqw;height:2.4cqw;z-index:5}
+  .crop::before,.crop::after{content:"";position:absolute;background:var(--ink)}
+  .crop::before{width:100%;height:.18cqh;top:50%} .crop::after{height:100%;width:.28cqw;left:50%}
+  .crop.tl{left:.9cqw;top:1.2cqh} .crop.tr{right:.9cqw;top:1.2cqh}
+  .crop.bl{left:.9cqw;bottom:1.2cqh} .crop.br{right:.9cqw;bottom:1.2cqh}
+  .reg{position:absolute;top:1.0cqh;left:50%;transform:translateX(-50%);width:2.2cqw;height:2.2cqw;border:.16cqh solid var(--ink);border-radius:50%;z-index:5}
+  .reg::before,.reg::after{content:"";position:absolute;background:var(--ink)}
+  .reg::before{left:50%;top:-40%;width:.14cqw;height:180%;margin-left:-.07cqw}
+  .reg::after{top:50%;left:-40%;height:.14cqh;width:180%;margin-top:-.07cqh}
+
+  .frame{position:absolute;inset:2.6cqh 2cqw;border:.5cqh solid var(--ink);padding:1.8cqh 1.6cqw 1.4cqh;display:flex;flex-direction:column;z-index:2}
+
+  .head{display:flex;justify-content:space-between;align-items:stretch;border-bottom:.34cqh solid var(--ink);padding-bottom:1.4cqh}
+  .head__l{display:flex;align-items:baseline;gap:1.2cqw}
+  .head__year{font-size:8cqh;font-weight:700;line-height:.78;letter-spacing:-.02em}
+  .head__t{font-size:1.7cqh;text-transform:uppercase;letter-spacing:.3em;color:var(--ink);align-self:center}
+  .head__r{text-align:right;font-size:1.35cqh;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);line-height:1.6}
+  .head__r b{color:var(--ink);background:var(--orange);color:#fff;padding:0 .4cqw}
+
+  .cal{flex:1;display:grid;
+    grid-template-columns:8.6cqw repeat(31,1fr);
+    grid-template-rows:2.7cqh repeat(12,1fr);
+    margin-top:1.6cqh;gap:.16cqh;background:var(--ink);border:.16cqh solid var(--ink);}
+  .axis{background:var(--paper);display:flex;align-items:center;justify-content:center;font-size:1.05cqh;color:var(--ink-soft)}
+  .corner{background:var(--ink);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:1.1cqh;letter-spacing:.05em}
+  .mlabel{background:var(--paper);display:flex;align-items:center;gap:.6cqw;padding-left:.5cqw}
+  .mnum{font-size:3cqh;font-weight:700;line-height:1;letter-spacing:-.03em}
+  .mname{font-size:1.05cqh;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.08em}
+  .cell{background:var(--paper);position:relative}
+  .cell.is-weekend{background:var(--paper2)}
+  .cell.is-sunday::before{content:"";position:absolute;inset:0;border-top:.5cqh solid var(--orange)}
+  .cell.is-invalid{background:repeating-linear-gradient(45deg,var(--ink) 0 .28cqh,var(--paper) .28cqh .9cqh);opacity:.5}
+  .cell.cat-work{background:var(--cat-work);background-image:repeating-linear-gradient(90deg,transparent 0 .6cqw,rgba(19,19,17,.12) .6cqw .68cqw)}
+  .cell.cat-travel{background:var(--cat-travel);background-image:repeating-linear-gradient(45deg,transparent 0 .5cqw,rgba(47,93,87,.18) .5cqw .58cqw)}
+  .cell.cat-streak::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:.8cqh;height:.8cqh;background:var(--ink)}
+  /* 里程碑 = 实心橙块 + 等宽大写标签 */
+  .cell.has-ms{z-index:3;overflow:visible;background:var(--paper)}
+  .ms__dot{position:absolute;left:0;top:0;width:100%;height:100%;background:var(--orange)}
+  .ms__label{position:absolute;left:.2cqw;top:1.6cqh;white-space:nowrap;font-size:1.15cqh;font-weight:700;
+    text-transform:uppercase;letter-spacing:.04em;color:var(--ink);background:var(--paper);padding:0 .2cqw}
+
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:1.4cqh;padding-top:1cqh;
+    border-top:.34cqh solid var(--ink);font-size:1.2cqh;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)}
+  .legend{display:flex;gap:1.8cqw;align-items:center}
+  .lg{display:flex;gap:.5cqw;align-items:center}
+  .sw{width:1.4cqw;height:1.3cqh;display:inline-block;border:.12cqh solid var(--ink)}
+  .sw.or{background:var(--orange);border-color:var(--orange)} .sw.wo{background:var(--cat-work)} .sw.tv{background:var(--cat-travel)}
+  .sw.st{background:var(--paper);position:relative} .sw.st::after{content:"";position:absolute;inset:32%;background:var(--ink)}
+  .foot__spec b{color:#fff;background:var(--ink);padding:0 .4cqw}
+
+  @media print{
+    @page{size:A1 landscape;margin:0}
+    body{background:#fff;padding:0}.caption{display:none}
+    .poster{width:100%;height:100%;box-shadow:none;aspect-ratio:auto}
+  }
+</style>
+</head>
+<body>
+  <div class="caption">方向③ · <b>工业 MONO / BRUTALIST</b> · A1 841×594mm 横向 · 双击可 Ctrl+P 看印刷预览</div>
+  <div class="poster">
+    <span class="crop tl"></span><span class="crop tr"></span><span class="crop bl"></span><span class="crop br"></span>
+    <span class="reg"></span>
+    <div class="frame">
+      <div class="head">
+        <div class="head__l">
+          <div class="head__year">2026</div>
+          <div class="head__t">Linear&nbsp;Year&nbsp;Sheet</div>
+        </div>
+        <div class="head__r">
+          <div>Format&nbsp;<b>A1</b></div>
+          <div>841 × 594 MM</div>
+          <div>Grid 12 × 31</div>
+        </div>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="foot">
+        <div class="legend">
+          <span class="lg"><span class="sw or"></span>Milestone</span>
+          <span class="lg"><span class="sw wo"></span>Sprint</span>
+          <span class="lg"><span class="sw tv"></span>Travel</span>
+          <span class="lg"><span class="sw st"></span>Streak</span>
+        </div>
+        <div class="foot__spec">PRINT&nbsp;READY · <b>CMYK · BLEED 3MM · FONTS EMBEDDED</b></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const YEAR=2026;
+const MZH=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const MNUM=['01','02','03','04','05','06','07','08','09','10','11','12'];
+const MEN=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MILESTONES=[{m:1,d:14,en:'OPENING'},{m:4,d:1,en:'RELEASE'},{m:7,d:20,en:'TRAVEL'},{m:10,d:25,en:'REVIEW'}];
+function catFor(m,d){
+  if(m===2&&d>=2&&d<=20)return'work';
+  if(m===7&&d>=8&&d<=16)return'travel';
+  if(m===11&&d>=1&&d<=12)return'work';
+  if(m===0||m===5)return'streak';
+  if(((m*31+d)%9)===0)return'work';
+  return null;
+}
+function isValid(y,m,d){const dt=new Date(y,m,d);return dt.getMonth()===m;}
+function el(t,c){const e=document.createElement(t);if(c)e.className=c;return e;}
+const cal=document.getElementById('cal');
+const corner=el('div','corner');corner.textContent='DAY';corner.style.gridArea='1/1';cal.appendChild(corner);
+for(let d=1;d<=31;d++){const a=el('div','axis');a.textContent=String(d).padStart(2,'0');a.style.gridRow=1;a.style.gridColumn=d+1;cal.appendChild(a);}
+for(let m=0;m<12;m++){
+  const lab=el('div','mlabel');lab.innerHTML=`<span class="mnum">${MNUM[m]}</span><span class="mname">${MEN[m]}</span>`;
+  lab.style.gridRow=m+2;lab.style.gridColumn=1;cal.appendChild(lab);
+  for(let d=1;d<=31;d++){
+    const cell=el('div','cell');cell.style.gridRow=m+2;cell.style.gridColumn=d+1;
+    if(!isValid(YEAR,m,d)){cell.classList.add('is-invalid');cal.appendChild(cell);continue;}
+    const dow=new Date(YEAR,m,d).getDay();
+    if(dow===0||dow===6)cell.classList.add('is-weekend');
+    if(dow===0)cell.classList.add('is-sunday');
+    const cat=catFor(m,d);if(cat)cell.classList.add('cat-'+cat);
+    const ms=MILESTONES.find(x=>x.m===m&&x.d===d);
+    if(ms){cell.classList.add('has-ms');cell.innerHTML=`<span class="ms__dot"></span><span class="ms__label">${ms.en}</span>`;}
+    cal.appendChild(cell);
+  }
+}
+</script>
+</body>
+</html>

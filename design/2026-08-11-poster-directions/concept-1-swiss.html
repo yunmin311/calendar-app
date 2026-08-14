@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向① 瑞士网格 · 2026 线性年历 A1</title>
+<style>
+  /* ============ 概念① 瑞士网格 / International Typographic Style ============
+     参考谱系: Vignelli Stendig 挂历 · 大字号 Helvetica · 强网格 · 大留白 · 单一红
+     性格预算全花在「巨大的月份数字 + 网格本身」这一处
+     字号两极制: 巨大月份数字(display)  vs  极小轴刻度(caption), 没有中间档
+  ============================================================================ */
+  :root{
+    --paper:#ffffff;        /* 单一底: 纯白纸 */
+    --ink:#0b0b0b;          /* 墨 */
+    --ink-soft:#8a8a8a;     /* 次级灰 */
+    --line:#d9d7d2;         /* 网格线 */
+    --wknd:#f2f0ec;         /* 周末暖灰 */
+    --accent:#e2231a;       /* 唯一强调色: Vignelli/Knoll 红 */
+    --cat-work:#e9e6df;     /* 冲刺期底纹 */
+    --cat-travel:#e6ecec;   /* 远行 */
+    --stage:#c9c6c0;        /* 展墙背景 */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--stage);
+    font-family:"Helvetica Neue",Arial,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;
+    padding:3vh 2vw;gap:1.4vh;min-height:100%;
+  }
+  .caption{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#4b4945}
+  .caption b{color:#111}
+
+  /* ---- A1 横向画布 841 x 594 (√2), container 用于 cqw/cqh 相对缩放 ---- */
+  .poster{
+    width:min(1580px,96vw);
+    aspect-ratio:841/594;
+    background:var(--paper);
+    container-type:size;
+    box-shadow:0 3vh 6vh rgba(0,0,0,.28);
+    position:relative;
+    overflow:hidden;
+  }
+  .frame{position:absolute;inset:0;padding:4.2cqh 3.2cqw 3.6cqh;display:flex;flex-direction:column}
+
+  /* ---- 眉头 / masthead ---- */
+  .head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:2.4cqh;border-bottom:.28cqh solid var(--ink)}
+  .head__year{font-size:9cqh;font-weight:800;line-height:.8;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .head__meta{text-align:right;font-size:1.5cqh;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);line-height:1.5}
+  .head__meta b{color:var(--ink);font-weight:700}
+  .head__title{font-size:2.1cqh;letter-spacing:.02em;color:var(--ink);text-transform:none;font-weight:600}
+
+  /* ---- 日历网格: 左侧月份栏 + 顶部 1..31 日刻度 + 12x31 单元 ---- */
+  .cal{flex:1;display:grid;
+    grid-template-columns:8.4cqw repeat(31,1fr);
+    grid-template-rows:2.6cqh repeat(12,1fr);
+    margin-top:2.2cqh;
+    background:var(--line);
+    gap:.09cqh;               /* 露出底色 = 发丝网格线 */
+    border:.09cqh solid var(--line);
+  }
+  .axis{background:var(--paper);display:flex;align-items:center;justify-content:center;
+    font-size:1.15cqh;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .corner{background:var(--paper)}
+  .mlabel{background:var(--paper);display:flex;align-items:baseline;gap:.5cqw;padding-left:.4cqw}
+  .mnum{font-size:3.4cqh;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .mname{font-size:1.15cqh;color:var(--ink-soft);letter-spacing:.02em}
+  .cell{background:var(--paper);position:relative}
+  .cell.is-weekend{background:var(--wknd)}
+  .cell.is-sunday::before{content:"";position:absolute;top:0;left:0;width:100%;height:.34cqh;background:var(--accent);opacity:.85}
+  .cell.is-invalid{background:repeating-linear-gradient(135deg,#fbfbfa 0 .5cqh,#f1f0ed .5cqh 1cqh)}
+  .cell.cat-work{background:var(--cat-work)}
+  .cell.cat-work.is-weekend{background:#e2ded5}
+  .cell.cat-travel{background:var(--cat-travel)}
+  .cell.cat-streak::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:.7cqh;height:.7cqh;border-radius:50%;background:var(--ink);opacity:.32}
+  /* 里程碑 = 排版锚点: 红方块 + 小型大写标签 */
+  .cell.has-ms{background:var(--paper);z-index:3;overflow:visible}
+  .ms__dot{position:absolute;left:.3cqw;top:.5cqh;width:.9cqw;height:.9cqw;background:var(--accent)}
+  .ms__label{position:absolute;left:.3cqw;top:1.9cqh;white-space:nowrap;font-size:1.15cqh;
+    font-weight:700;letter-spacing:.02em;color:var(--ink)}
+
+  /* ---- 页脚: 图例 + 印刷规格 ---- */
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:2.2cqh;
+    padding-top:1.6cqh;border-top:.16cqh solid var(--line);
+    font-size:1.35cqh;letter-spacing:.06em;color:var(--ink-soft)}
+  .legend{display:flex;gap:2.2cqw;align-items:center}
+  .lg{display:flex;gap:.5cqw;align-items:center;text-transform:uppercase;letter-spacing:.1em}
+  .sw{width:1.3cqw;height:1.3cqh;display:inline-block;border:.08cqh solid var(--line)}
+  .sw.red{background:var(--accent);border-color:var(--accent)}
+  .sw.wk{background:var(--wknd)}
+  .sw.wo{background:var(--cat-work)}
+  .sw.tv{background:var(--cat-travel)}
+  .foot__spec b{color:var(--ink);font-weight:700}
+
+  @media print{
+    @page{size:A1 landscape;margin:0}
+    body{background:#fff;padding:0}
+    .caption{display:none}
+    .poster{width:100%;height:100%;box-shadow:none;aspect-ratio:auto}
+  }
+</style>
+</head>
+<body>
+  <div class="caption">方向① · <b>瑞士网格</b> · A1 841×594mm 横向 · 双击可 Ctrl+P 看印刷预览</div>
+  <div class="poster">
+    <div class="frame">
+      <div class="head">
+        <div class="head__year">2026</div>
+        <div class="head__meta">
+          <div class="head__title">线性年历 / Linear&nbsp;Year</div>
+          <div>Format <b>A1</b> · 841×594&nbsp;mm</div>
+          <div>Grid 12 × 31</div>
+        </div>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="foot">
+        <div class="legend">
+          <span class="lg"><span class="sw red"></span>里程碑</span>
+          <span class="lg"><span class="sw wo"></span>冲刺期</span>
+          <span class="lg"><span class="sw tv"></span>远行</span>
+          <span class="lg"><span class="sw wk"></span>周末</span>
+        </div>
+        <div class="foot__spec">Designed print · <b>CMYK · 3mm 出血 · 嵌字</b></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---- 共用数据模型: 一份数据 → 任意皮肤 (演示「数据进→海报出」) ---- */
+const YEAR=2026;
+const MZH=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const MNUM=['01','02','03','04','05','06','07','08','09','10','11','12'];
+const MILESTONES=[
+  {m:1,d:14,zh:'展览开幕'},
+  {m:4,d:1, zh:'新作发布'},
+  {m:7,d:20,zh:'远行'},
+  {m:10,d:25,zh:'年终复盘'},
+];
+function catFor(m,d){
+  if(m===2 && d>=2 && d<=20) return 'work';    // 三月冲刺期 → 底纹
+  if(m===7 && d>=8 && d<=16) return 'travel';  // 八月远行
+  if(m===11 && d>=1 && d<=12) return 'work';   // 十二月收尾
+  if(m===0 || m===5) return 'streak';          // 一月/六月 打卡点
+  if(((m*31+d)%9)===0) return 'work';
+  return null;
+}
+function isValid(y,m,d){const dt=new Date(y,m,d);return dt.getMonth()===m;}
+function el(t,c){const e=document.createElement(t);if(c)e.className=c;return e;}
+
+const cal=document.getElementById('cal');
+const corner=el('div','corner');corner.style.gridArea='1/1';cal.appendChild(corner);
+for(let d=1;d<=31;d++){const a=el('div','axis');a.textContent=d;a.style.gridRow=1;a.style.gridColumn=d+1;cal.appendChild(a);}
+for(let m=0;m<12;m++){
+  const lab=el('div','mlabel');
+  lab.innerHTML=`<span class="mnum">${MNUM[m]}</span><span class="mname">${MZH[m]}</span>`;
+  lab.style.gridRow=m+2;lab.style.gridColumn=1;cal.appendChild(lab);
+  for(let d=1;d<=31;d++){
+    const cell=el('div','cell');cell.style.gridRow=m+2;cell.style.gridColumn=d+1;
+    if(!isValid(YEAR,m,d)){cell.classList.add('is-invalid');cal.appendChild(cell);continue;}
+    const dow=new Date(YEAR,m,d).getDay();
+    if(dow===0||dow===6)cell.classList.add('is-weekend');
+    if(dow===0)cell.classList.add('is-sunday');
+    const cat=catFor(m,d);if(cat)cell.classList.add('cat-'+cat);
+    const ms=MILESTONES.find(x=>x.m===m&&x.d===d);
+    if(ms){cell.classList.add('has-ms');cell.innerHTML=`<span class="ms__dot"></span><span class="ms__label">${ms.zh}</span>`;}
+    cal.appendChild(cell);
+  }
+}
+</script>
+</body>
+</html>

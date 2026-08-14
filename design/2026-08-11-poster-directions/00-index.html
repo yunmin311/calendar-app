@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026 线性年历 · A1 海报 · 三个方向对照</title>
+<style>
+  :root{--ink:#17150f;--soft:#6c665a;--paper:#efeade;--line:#d8d0bf;--accent:#b5761d}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);
+    font-family:"Helvetica Neue",Arial,"Microsoft YaHei",system-ui,sans-serif;
+    padding:6vh 6vw;line-height:1.6}
+  h1{font-size:34px;letter-spacing:-.01em;margin-bottom:6px}
+  .sub{color:var(--soft);font-size:15px;letter-spacing:.02em;margin-bottom:4px}
+  .note{color:var(--soft);font-size:13.5px;max-width:70ch;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;margin-top:34px}
+  a.card{display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid var(--line);
+    padding:22px 22px 20px;transition:transform .12s ease,box-shadow .12s ease}
+  a.card:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(60,45,20,.16)}
+  .tag{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .ct{font-size:22px;margin:8px 0 10px;letter-spacing:.01em}
+  .dl{font-size:13.5px;color:var(--soft)}
+  .dl b{color:var(--ink);font-weight:600}
+  .dims{margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--soft)}
+  .dims span{border:1px solid var(--line);padding:3px 8px;border-radius:2px}
+  .mix{margin-top:30px;font-size:14px;color:var(--ink);background:#fff;border:1px solid var(--line);padding:16px 20px}
+  .mix b{color:var(--accent)}
+</style>
+</head>
+<body>
+  <h1>2026 线性年历 · A1 海报 · 三个方向</h1>
+  <div class="sub">A1 横向 841×594mm · 12 行月份 × 31 列日期的线性长条 · 同一份数据 → 三种皮肤</div>
+  <div class="sub">2026-08-11 · 挑方向用,不是成品</div>
+
+  <div class="grid">
+    <a class="card" href="concept-1-swiss.html">
+      <div class="tag">方向 ①</div>
+      <div class="ct">瑞士网格</div>
+      <div class="dl">冷 · 巨大 Helvetica 数字 · 大留白 · <b>单一红</b>。最像 Stendig 那种能当设计 icon 的纯字体年历。</div>
+      <div class="dims"><span>配色 · 白/黑/红</span><span>布局 · 强网格发丝线</span><span>字体 · Helvetica/Arial</span></div>
+    </a>
+    <a class="card" href="concept-2-editorial.html">
+      <div class="tag">方向 ②</div>
+      <div class="ct">暖 · 手作 · 编辑</div>
+      <div class="dl">暖纸带纸纹 · 楷体出笔锋 · 老式数字 · <b>赭黄 + 墨绿</b>。年鉴/编辑气,刻意避开赤陶俗脸。</div>
+      <div class="dims"><span>配色 · 麦色/炭/赭黄</span><span>布局 · 横向发丝无竖线</span><span>字体 · Georgia + 楷体</span></div>
+    </a>
+    <a class="card" href="concept-3-brutalist.html">
+      <div class="tag">方向 ③</div>
+      <div class="ct">工业 mono</div>
+      <div class="dl">水泥纸 · 粗黑线 · 等宽全大写 · <b>安全橙</b> · 四角裁切/套准标。像工程排期表,顺带演印刷卖点。</div>
+      <div class="dims"><span>配色 · 水泥/黑/橙</span><span>布局 · 厚框粗网格</span><span>字体 · Consolas 等宽</span></div>
+    </a>
+  </div>
+
+  <div class="mix">
+    <b>试衣间挑法:</b> 不用在三张里三选一。你可以分维度指认 —— 比如「要①的布局 + ②的配色 + ③的裁切标」，
+    我照你的混搭再合成一版。也可以直接说哪张整体最对。
+  </div>
+
+  <div class="note">
+    三版都用 Windows 自带字体（Arial / Georgia / 楷体 / Consolas），断网双击即看，定稿再换特定授权字体。<br>
+    共用同一份演示数据（4 个里程碑 + 冲刺期/远行/打卡的分类密度），是为了让你看清「数据进 → 版面出」怎么把长条从表格变成一张设计过的年度叙事。<br>
+    每张右下角标了印刷意图（CMYK / 3mm 出血 / 嵌字）；在浏览器里按 Ctrl+P 能看到它按真实 A1 铺满纸张的样子。
+  </div>
+</body>
+</html>
