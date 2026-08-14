@@ -1,57 +1,37 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { posterSVG } from './poster/renderPoster.js';
+import React, { useMemo, useState } from 'react';
+import { renderRecord } from './poster/renderRecord.js';
 import { geometry, cellRect } from './poster/layout.js';
-import { theme } from './poster/theme.js';
-import {
-  loadModel, saveModel, sampleModel, emptyModel,
-  MONTHS_ZH, daysInMonth, dow, iso,
-} from './data/model.js';
-import { exportPosterPDF } from './poster/exportPdf.js';
+import { MONTHS_ZH, daysInMonth, dow, iso } from './data/model.js';
+import { sampleActivities, toRecordModel, ACTIVITY_TYPES, MAX_LEVEL } from './data/activity.js';
+import { exportRecordPDF } from './poster/exportPdf.js';
 
 const YEAR = 2026;
 const WK = ['日', '一', '二', '三', '四', '五', '六'];
+const TYPE_NAME = Object.fromEntries(ACTIVITY_TYPES.map((t) => [t.id, t.name]));
 
+// 这个壳 = 「渲染+导出组件」的预览台:
+//   进 = CO 活动数据数组(现用占位 sampleActivities, 真 schema 等 CO 落地再换)
+//   出 = 月历留痕(B 暖·编辑+拓质+朱砂) + 印刷 PDF
+// 不做活动编辑/存储(那是 CO 的事), 只读预览 + 逐日检视。
 export default function App() {
-  const [model, setModel] = useState(() => loadModel(YEAR));
+  const [activities, setActivities] = useState(() => sampleActivities(YEAR));
+  const [variant, setVariant] = useState('editorial-rubbing'); // B 默认; 可切 A 对照
   const [sel, setSel] = useState(null); // {m, d}
   const [busy, setBusy] = useState('');
 
-  useEffect(() => { saveModel(model); }, [model]);
-
-  const svg = useMemo(() => posterSVG(model), [model]);
+  const model = useMemo(() => toRecordModel(activities, YEAR, variant), [activities, variant]);
+  const svg = useMemo(() => renderRecord(model, { variant }), [model, variant]);
   const g = useMemo(() => geometry(), []);
 
-  // 更新某天
-  const patchDay = (m, d, patch) => setModel((prev) => {
-    const key = iso(YEAR, m, d);
-    const days = { ...prev.days };
-    const next = { ...(days[key] || {}), ...patch };
-    // 清掉空字段
-    if (next.note === '') delete next.note;
-    if (!next.categoryId) delete next.categoryId;
-    if (Object.keys(next).length === 0) delete days[key]; else days[key] = next;
-    return { ...prev, days };
-  });
-
-  const toggleMilestone = (m, d, label) => setModel((prev) => {
-    const date = iso(YEAR, m, d);
-    const exists = prev.milestones.find((x) => x.date === date);
-    let milestones;
-    if (exists) milestones = prev.milestones.filter((x) => x.date !== date);
-    else milestones = [...prev.milestones, { date, label: label || '里程碑' }];
-    return { ...prev, milestones };
-  });
-  const setMilestoneLabel = (m, d, label) => setModel((prev) => ({
-    ...prev,
-    milestones: prev.milestones.map((x) => (x.date === iso(YEAR, m, d) ? { ...x, label } : x)),
-  }));
-
-  const selRec = sel ? (model.days[iso(YEAR, sel.m, sel.d)] || {}) : null;
-  const selMs = sel ? model.milestones.find((x) => x.date === iso(YEAR, sel.m, sel.d)) : null;
+  // 逐日检视: 点某天 → 拉出当天所有活动(从输入数组过滤, 只读)
+  const selDate = sel ? iso(YEAR, sel.m, sel.d) : null;
+  const selActs = selDate ? activities.filter((a) => a.date === selDate) : [];
+  const selDay = selDate ? model.days[selDate] : null;
+  const selMs = sel ? model.milestones.find((x) => x.date === selDate) : null;
 
   const doExport = async () => {
-    setBusy('正在生成印刷级 PDF…');
-    try { await exportPosterPDF(model); setBusy(''); }
+    setBusy('正在生成印刷级 PDF(含拓质 300dpi 栅格化)…');
+    try { await exportRecordPDF(activities, YEAR, variant); setBusy(''); }
     catch (e) { console.error(e); setBusy('导出未完成: ' + (e?.message || e)); }
   };
 
@@ -60,14 +40,19 @@ export default function App() {
       <header className="bar">
         <div className="bar__l">
           <span className="bar__year">{YEAR}</span>
-          <span className="bar__title">线性年历 · 海报生成器</span>
-          <span className="bar__tag">方向② 暖·手作·编辑</span>
+          <span className="bar__title">活动留痕 · CO 记录生成器</span>
+          <span className="bar__tag">方向② 暖·编辑 + 拓古材质(B)</span>
         </div>
         <div className="bar__r">
+          <div className="seg" role="group" aria-label="变体">
+            <button className={'seg__b' + (variant === 'editorial-rubbing' ? ' seg__b--on' : '')}
+              onClick={() => setVariant('editorial-rubbing')}>B 暖·拓质</button>
+            <button className={'seg__b' + (variant === 'tuogu-ink' ? ' seg__b--on' : '')}
+              onClick={() => setVariant('tuogu-ink')}>A 全拓·墨</button>
+          </div>
           <button className="btn" onClick={() => window.print()}>打印预览</button>
           <button className="btn btn--primary" onClick={doExport}>导出印刷 PDF ▸</button>
-          <button className="btn btn--ghost" onClick={() => { setModel(sampleModel(YEAR)); setSel(null); }}>重置示例</button>
-          <button className="btn btn--ghost" onClick={() => { if (confirm('清空全部内容?')) { setModel(emptyModel(YEAR)); setSel(null); } }}>清空</button>
+          <button className="btn btn--ghost" onClick={() => { setActivities(sampleActivities(YEAR)); setSel(null); }}>重置示例活动</button>
         </div>
       </header>
 
@@ -96,46 +81,61 @@ export default function App() {
         </div>
 
         <aside className="panel">
-          {!sel && <div className="panel__hint">点海报上任意一天 →<br />在这里写备注、分类、设里程碑。<br /><br />屏幕编辑刻意做得朴素;<br />力气都在导出的那张纸上。</div>}
+          {!sel && (
+            <div className="panel__hint">
+              点月历上任意一天 →<br />看那天在 CO 里做了什么。<br /><br />
+              墨深 = 当日投入(4 档)· 留白 = 没活动<br />朱砂印 = 出版/里程碑。<br /><br />
+              这是「渲染+导出组件」的预览台,<br />活动数据现用占位,真数据由 CO 喂入。
+            </div>
+          )}
           {sel && (
             <div className="editor">
               <div className="editor__date">
                 {MONTHS_ZH[sel.m]} {sel.d} 日 <span className="editor__wk">周{WK[dow(YEAR, sel.m, sel.d)]}</span>
               </div>
 
-              <label className="fld">备注
-                <input type="text" value={selRec.note || ''} placeholder="一句话…"
-                  onChange={(e) => patchDay(sel.m, sel.d, { note: e.target.value })} />
-              </label>
-
-              <div className="fld">分类(密度即纹理)
-                <div className="chips">
-                  <button className={'chip' + (!selRec.categoryId ? ' chip--on' : '')} onClick={() => patchDay(sel.m, sel.d, { categoryId: undefined })}>无</button>
-                  {model.categories.map((cat) => (
-                    <button key={cat.id} className={'chip' + (selRec.categoryId === cat.id ? ' chip--on' : '')}
-                      onClick={() => patchDay(sel.m, sel.d, { categoryId: cat.id })}>
-                      <span className="chip__sw" style={{ background: cat.color }} />{cat.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="fld">里程碑(排版锚点)
-                {!selMs && <button className="btn btn--sm" onClick={() => toggleMilestone(sel.m, sel.d)}>＋ 设为里程碑</button>}
-                {selMs && (
-                  <div className="ms">
-                    <input type="text" value={selMs.label} onChange={(e) => setMilestoneLabel(sel.m, sel.d, e.target.value)} />
-                    <button className="btn btn--sm btn--ghost" onClick={() => toggleMilestone(sel.m, sel.d)}>移除</button>
+              {selDay ? (
+                <div className="fld">强度
+                  <div className="lvl">
+                    {Array.from({ length: MAX_LEVEL }).map((_, i) => (
+                      <span key={i} className={'lvl__b' + (i < selDay.level ? ' lvl__b--on' : '')} />
+                    ))}
+                    <span className="lvl__t">level {selDay.level} · 投入 {selDay.count}</span>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="fld"><span className="muted">留白 —— 这天没有 CO 活动</span></div>
+              )}
+
+              {selMs && <div className="ms-tag"><span className="ms-tag__seal" />出版 / 里程碑:{selMs.label}</div>}
+
+              {selActs.length > 0 && (
+                <div className="fld">当天活动（{selActs.length}）
+                  <ul className="acts">
+                    {selActs.map((a) => (
+                      <li key={a.id} className="acts__i">
+                        <span className="acts__t">{TYPE_NAME[a.type] || a.type}</span>
+                        <span className="acts__ttl">{a.title}</span>
+                        <span className="acts__w">×{a.weight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <button className="btn btn--ghost btn--sm editor__close" onClick={() => setSel(null)}>关闭</button>
             </div>
           )}
 
+          <div className="legend">
+            {model.categories.filter((c) => c.id !== 'publish').map((c) => (
+              <span key={c.id} className="legend__i"><span className="legend__sw" style={{ background: c.color }} />{c.name}</span>
+            ))}
+            <span className="legend__i"><span className="legend__sw legend__sw--seal" />出版</span>
+          </div>
+
           <div className="panel__foot">
-            数据自动存本机(localStorage) · 屏幕用系统字, 导出换 OFL 嵌入款
+            进 = CO 活动数组(占位)· 出 = 月历留痕 + 印刷 PDF · 屏幕系统字，导出换 OFL 嵌入款
           </div>
         </aside>
       </div>
