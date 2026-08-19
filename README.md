@@ -11,12 +11,15 @@
 一个**纯 render+export 组件**:
 
 ```
-CO 活动数组  ──►  月历留痕 SVG（整年长条 / 单月详情）
-             └─►  印刷级 PDF（A1 + 出血 + 裁切标 + CMYK + 子集嵌字 + 拓质位图）
+活动数组  ──►  统计（总量/连续天/分类分布/按月/可按人分组）
+          ├─►  月历留痕 SVG（整年长条 / 单月详情）
+          ├─►  可嵌入小件 SVG（活动带 / 统计卡，同页可放无限个）
+          └─►  印刷级 PDF（A1 + 出血 + 裁切标 + CMYK + 子集嵌字 + 拓质位图）
 ```
 
-- **不自建活动存储、无副作用**;数据由 CO 喂入。
+- **不自建活动存储、无副作用**;数据由调用方喂入。
 - 两种皮肤:`editorial-rubbing`(**B** 暖·编辑+拓质,默认)/ `tuogu-ink`(**A** 全拓·单色墨)。
+- 四种**可编辑手工质感**:拓质 / 扎染 / 手绘 / 拓扑(见下)。
 - 墨深=当日投入(4 档)· 朱砂印=出版/里程碑 · 素纸留白=没活动。
 
 ## 调用（组件 API）
@@ -27,13 +30,43 @@ CO 活动数组  ──►  月历留痕 SVG（整年长条 / 单月详情）
 import { createRecord, exportRecordPDF } from './src/record/index.js';
 
 const rec = createRecord(activities, { year: 2026, variant: 'editorial-rubbing' });
-el.innerHTML = rec.yearSVG();      // 整年长条（12 月行 × 31 日列 A1）
-el.innerHTML = rec.monthSVG(2);    // 单月详情（三月,7 列周历大图）
+
+// 印刷大件
+el.innerHTML = rec.yearSVG();               // 整年长条（12 月行 × 31 日列 A1）
+el.innerHTML = rec.monthSVG(2);             // 单月详情（三月,7 列周历大图）
+
+// 可嵌入小件（塞进侧栏/卡片/仪表盘,同页放几个都行）
+el.innerHTML = rec.stripSVG({ from: 0, to: 2, cell: 3 });   // 活动带（只画一季度）
+el.innerHTML = rec.statCardSVG({ width: 90 });              // 统计卡
+
+// 统计（秘书那一半）
+rec.stats();                       // 总投入/有痕天/最长连续/分类分布/按月/最忙…
+rec.stats({ groupBy: 'actor' });   // 按活动上的任意字段分组（如按人）
 
 await exportRecordPDF(activities, 2026, 'editorial-rubbing');  // 浏览器:下载印刷 PDF
 ```
 
 **接进 CO** = 写一个 `fromCreativeOS(coData): Activity[]` 适配器,把 CO 数据映射成占位契约形状,塞在输入层,组件内部不动。
+
+### 手工质感（可编辑）
+
+质感定义在 `src/texture/index.js`,四个预设 `rubbing` 拓质 / `tiedye` 扎染 / `handdrawn` 手绘 / `topographic` 拓扑。
+每个参数都可改,屏幕预览与印刷栅格化**共用同一份定义**(印刷不会跟屏幕漂):
+
+```js
+rec.yearSVG({ texture: 'tiedye' });                              // 换皮
+rec.yearSVG({ texture: { name: 'tiedye', warp: 24, opacity: .3 } }); // 逐参微调
+createRecord(acts, { year: 2026, texture: 'handdrawn' });        // 整体锁定
+```
+
+滤镜 id 按内容派生前缀,同页多实例互不撞车;噪声频率随元件尺寸自适应,小卡片上花纹不会变巨。
+样品册:`design/2026-08-19-texture-module/`(两个 HTML 双击即看)。
+
+### 统计（`src/data/stats.js`）
+
+`computeStats(activities, {year, groupBy})` 吐总投入 / 有痕天与留白 / 活跃日均 / 最长与最近连续天数 /
+分类分布与占比 / 按月 / 强度分档 / 最忙一天 / 里程碑;`summarize(stats)` 出一行人话摘要。
+内部复用 `toDailySeries`,**统计口径与渲染口径同源**,不会出现两套数字。
 
 ### 活动数据(占位契约,真结构等 CO 定)
 
@@ -57,7 +90,13 @@ npm run dev            # 起 Vite 开发服(app 是组件的预览台)
 自测脚本(无需浏览器,node 直跑):
 
 ```bash
+node scripts/test-texture.mjs           # 手工质感模块(57 项)
+node scripts/test-stats.mjs             # 统计层(40 项,手算样本逐个对数)
+node scripts/test-embed.mjs             # 可嵌入小件(39 项,含同页多实例 id 不撞)
 node scripts/test-record-pdf.mjs        # B/A 印刷 PDF 矢量校验样张(847×600mm)
+
+node scripts/build-texture-gallery.mjs      # 四质感样品册 HTML
+node scripts/build-embed-demo.mjs           # 可嵌入小件演示 HTML
 node scripts/build-record-comparisons.mjs   # 整年 A/B 对照 HTML
 node scripts/build-month-preview.mjs        # 单月详情预览 HTML
 ```
