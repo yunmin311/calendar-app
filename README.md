@@ -59,8 +59,12 @@ rec.yearSVG({ texture: { name: 'tiedye', warp: 24, opacity: .3 } }); // 逐参�
 createRecord(acts, { year: 2026, texture: 'handdrawn' });        // 整体锁定
 ```
 
-滤镜 id 按内容派生前缀,同页多实例互不撞车;噪声频率随元件尺寸自适应,小卡片上花纹不会变巨。
-样品册:`design/2026-08-19-texture-module/`(两个 HTML 双击即看)。
+参数规则只有一条:**按 A1 长条为基准写,载体只换算噪声频率,别的一律照搬** —— 所以同一份配置到哪个载体都是同一个样子。
+滤镜 id 按内容派生前缀,同页多实例互不撞车。另有 `'none'` 预设 = 干净的纸。
+
+**调参台**(给设计师的):`design/2026-08-19-texture-module/02-质感调参台.html` —— **双击就开**,
+不用 npm、不起服务;拖滑块实时看,调顺眼了一键复制配置贴回代码。
+同目录还有样品册(四质感对照)和小件演示(同页 14 个实例)。
 
 ### 统计（`src/data/stats.js`）
 
@@ -90,11 +94,13 @@ npm run dev            # 起 Vite 开发服(app 是组件的预览台)
 自测脚本(无需浏览器,node 直跑):
 
 ```bash
-node scripts/test-texture.mjs           # 手工质感模块(57 项)
+node scripts/test-texture.mjs           # 手工质感模块(59 项)
 node scripts/test-stats.mjs             # 统计层(40 项,手算样本逐个对数)
 node scripts/test-embed.mjs             # 可嵌入小件(39 项,含同页多实例 id 不撞)
+node scripts/test-open-types.mjs        # 类型开放(30 项,图与统计数字不许打架)
 node scripts/test-record-pdf.mjs        # B/A 印刷 PDF 矢量校验样张(847×600mm)
 
+node scripts/build-texture-studio.mjs       # 质感调参台 HTML(给设计师拖滑块用)
 node scripts/build-texture-gallery.mjs      # 四质感样品册 HTML
 node scripts/build-embed-demo.mjs           # 可嵌入小件演示 HTML
 node scripts/build-record-comparisons.mjs   # 整年 A/B 对照 HTML
