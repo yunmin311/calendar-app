@@ -1,6 +1,6 @@
 // 统计层自测 —— node 直跑。用手算得出的小样本对数字, 不只看"没崩"。
 // 用法: node scripts/test-stats.mjs
-import { computeStats, monthStats, summarize } from '../src/data/stats.js';
+import { computeStats, monthStats, summarize, monthRange, daysBack } from '../src/data/stats.js';
 import { sampleActivities } from '../src/data/activity.js';
 import { createRecord } from '../src/record/index.js';
 
@@ -78,7 +78,37 @@ ok('分档合计 = 全年天数', rs.levels.reduce((a, b) => a + b, 0) === rs.da
 ok('单月投入合计 = 全年总投入', rs.byMonth.reduce((n, m) => n + m.weight, 0) === rs.weight.sum, rs.weight.sum);
 ok('createRecord 可带 groupBy', rec.stats({ groupBy: 'type' }).groups.length > 0);
 
-console.log('\n[7] 人话摘要');
+console.log('\n[7] 区间统计(秘书交的是「这周/这个月」的账)');
+{
+  const acts7 = [
+    A('2026-03-01', 'design', 2), A('2026-03-05', 'writing', 1), A('2026-03-31', 'build', 3),
+    A('2026-04-01', 'design', 5), A('2026-02-28', 'research', 4),
+  ];
+  const mar = computeStats(acts7, { year: 2026, from: '2026-03-01', to: '2026-03-31' });
+  ok('只算三月: 3 条 / 3 天 / 投入 6', mar.activities === 3 && mar.days.active === 3 && mar.weight.sum === 6, [mar.activities, mar.days.active, mar.weight.sum]);
+  ok('区间天数 = 31', mar.days.total === 31 && mar.range.days === 31, mar.range);
+  ok('range.whole=false 且首尾正确', mar.range.whole === false && mar.range.from === '2026-03-01' && mar.range.to === '2026-03-31');
+  ok('不给区间仍是整年 365 天', computeStats(acts7, { year: 2026 }).days.total === 365);
+  ok('整年 range.whole=true', computeStats(acts7, { year: 2026 }).range.whole === true);
+  ok('含首尾(3/1 与 3/31 都算进来)', mar.byType.some((t) => t.id === 'design') && mar.byType.some((t) => t.id === 'build'));
+  const half = computeStats(acts7, { year: 2026, from: '2026-03-02' });
+  ok('只给 from: 从那天到年底', half.activities === 3 && half.range.to === '2026-12-31', [half.activities, half.range]);
+  ok('只给 to: 从年初到那天', computeStats(acts7, { year: 2026, to: '2026-03-01' }).activities === 2);
+  ok('区间超出本年被夹住', computeStats(acts7, { year: 2026, from: '2020-01-01', to: '2030-01-01' }).days.total === 365);
+  ok('非法区间退回整年', computeStats(acts7, { year: 2026, from: '乱写' }).days.total === 365);
+  ok('空区间不崩(from 晚于 to)', (() => { const r = computeStats(acts7, { year: 2026, from: '2026-06-01', to: '2026-05-01' }); return r.days.active === 0 && r.days.total === 0; })());
+  ok('区间内 groupBy 照常', computeStats(acts7.map((a) => ({ ...a, who: 'A' })), { year: 2026, from: '2026-03-01', to: '2026-03-31', groupBy: 'who' }).groups[0].count === 3);
+  ok('摘要改口说区间、不再讲"占全年"', summarize(mar).includes('2026-03-01 至 2026-03-31') && !summarize(mar).includes('占全年'), summarize(mar));
+  ok('monthRange helper', JSON.stringify(monthRange(2026, 1)) === JSON.stringify({ from: '2026-02-01', to: '2026-02-28' }), monthRange(2026, 1));
+  ok('monthRange 闰年二月', monthRange(2024, 1).to === '2024-02-29');
+  ok('daysBack 含当天', JSON.stringify(daysBack('2026-03-10', 7)) === JSON.stringify({ from: '2026-03-04', to: '2026-03-10' }), daysBack('2026-03-10', 7));
+  ok('daysBack 跨月', daysBack('2026-03-03', 7).from === '2026-02-25', daysBack('2026-03-03', 7));
+  ok('daysBack 吃非法日期不崩', daysBack('乱写', 7).from === null);
+  const viaHelper = computeStats(acts7, { year: 2026, ...monthRange(2026, 2) });
+  ok('helper 与手写区间等价', viaHelper.weight.sum === mar.weight.sum);
+}
+
+console.log('\n[8] 人话摘要');
 const line = summarize(rs);
 console.log('  →', line);
 ok('摘要含关键数字', line.includes(String(rs.days.active)) && line.includes(String(rs.weight.sum)) && !/NaN|undefined/.test(line), line);

@@ -42,6 +42,9 @@ el.innerHTML = rec.statCardSVG({ width: 90 });              // 统计卡
 // 统计（秘书那一半）
 rec.stats();                       // 总投入/有痕天/最长连续/分类分布/按月/最忙…
 rec.stats({ groupBy: 'actor' });   // 按活动上的任意字段分组（如按人）
+rec.stats(monthRange(2026, 2));    // 只算三月
+rec.stats(daysBack('2026-03-20', 7));          // 只算最近七天（基准日由你给，组件不看时钟）
+rec.statCardSVG(daysBack('2026-03-20', 7));    // 周报卡：右上角自动标出区间
 
 await exportRecordPDF(activities, 2026, 'editorial-rubbing');  // 浏览器:下载印刷 PDF
 ```
@@ -68,9 +71,12 @@ createRecord(acts, { year: 2026, texture: 'handdrawn' });        // 整体锁定
 
 ### 统计（`src/data/stats.js`）
 
-`computeStats(activities, {year, groupBy})` 吐总投入 / 有痕天与留白 / 活跃日均 / 最长与最近连续天数 /
+`computeStats(activities, {year, from, to, groupBy})` 吐总投入 / 有痕天与留白 / 活跃日均 / 最长与最近连续天数 /
 分类分布与占比 / 按月 / 强度分档 / 最忙一天 / 里程碑;`summarize(stats)` 出一行人话摘要。
-内部复用 `toDailySeries`,**统计口径与渲染口径同源**,不会出现两套数字。
+`from`/`to` 只算那一段(秘书交的是「这周/这个月」的账),配 `monthRange()` / `daysBack()` 两个纯函数助手用 —— **组件不看时钟**,基准日由调用方给。
+
+内部复用 `toDailySeries`,**统计口径与渲染口径同源**,不会出现两套数字:凡统计算作「有痕」的天,图上一定画得出来。
+日期不合法 / 不在本年 / 投入量为负的活动不会被悄悄吞掉,`stats.dropped` 里有计数。
 
 ### 活动数据(占位契约,真结构等 CO 定)
 

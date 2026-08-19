@@ -41,10 +41,30 @@ function streaks(dates) {
   };
 }
 
+/** 某月的起止日('YYYY-MM-DD'),给 computeStats 的 from/to 用。纯函数, 不看时钟。 */
+export function monthRange(year = 2026, m = 0) {
+  const mm = Math.max(0, Math.min(11, Math.trunc(Number(m) || 0)));
+  const last = new Date(Date.UTC(year, mm + 1, 0)).getUTCDate();
+  const p = (n) => String(n).padStart(2, '0');
+  return { from: `${year}-${p(mm + 1)}-01`, to: `${year}-${p(mm + 1)}-${p(last)}` };
+}
+
+/** 从某天往回数 n 天的区间(含当天)。「最近七天」这种由调用方给基准日, 组件不看时钟。 */
+export function daysBack(endDate, n = 7) {
+  const p = parseDate(endDate);
+  if (!p) return { from: null, to: null };
+  const end = Date.UTC(p.y, p.m, p.d);
+  const start = new Date(end - (Math.max(1, n) - 1) * 86400000);
+  const pad = (x) => String(x).padStart(2, '0');
+  return { from: `${start.getUTCFullYear()}-${pad(start.getUTCMonth() + 1)}-${pad(start.getUTCDate())}`, to: endDate };
+}
+
 /**
  * 算统计。
  * @param {Array} activities  活动数组(占位契约形状)
- * @param {{year?:number, groupBy?:string}} opts
+ * @param {{year?:number, from?:string, to?:string, groupBy?:string}} opts
+ *   from/to —— 只统计这段(含首尾, 'YYYY-MM-DD')。秘书要交的是「这周/这个月干了啥」,
+ *              不给就是整年。强度分档仍按**全年**尺度算, 所以「墨深」在区间内外含义一致。
  *   groupBy —— 按活动上的任意字段再分一组(如 'actor' 按人、'project' 按项目);
  *              留空则不分组。字段缺失的活动归到 '(未标注)'。
  * @returns 统计对象(见下面各字段;数量为 0 时全部安全归零, 不抛)
@@ -52,10 +72,23 @@ function streaks(dates) {
 export function computeStats(activities, opts = {}) {
   const year = Number(opts.year) || 2026;
   // 与渲染共用同一个分拣入口(toDailySeries 内部就是它), 所以统计口径与画面口径**不可能**分叉
-  const { series, maxWeight, kept: inYear, dropped } = toDailySeries(activities, year);
+  const { series: yearSeries, maxWeight, kept: keptYear, dropped } = toDailySeries(activities, year);
+
+  // 区间:夹到本年内; 非法/缺省则退回整年
+  const yFrom = `${year}-01-01`, yTo = `${year}-12-31`;
+  const rawFrom = parseDate(opts.from) ? opts.from : null;
+  const rawTo = parseDate(opts.to) ? opts.to : null;
+  const from = rawFrom && rawFrom > yFrom ? rawFrom : yFrom;
+  const to = rawTo && rawTo < yTo ? rawTo : yTo;
+  const ranged = !!(rawFrom || rawTo);
+  const inRange = (d) => d >= from && d <= to;
+
+  const series = ranged ? yearSeries.filter((s) => inRange(s.date)) : yearSeries;
+  const inYear = ranged ? keptYear.filter((a) => inRange(a.date)) : keptYear;
 
   const activeDates = series.filter((s) => s.count > 0).map((s) => s.date).sort();
-  const yearDays = dayNum(`${year}-12-31`) - dayNum(`${year}-01-01`) + 1; // 365/366 自动对(含闰年)
+  // 区间天数(含首尾);不给区间就是全年 365/366(闰年自动对)
+  const yearDays = Math.max(0, dayNum(to) - dayNum(from) + 1);
   // round2: 小数投入量会带出 0.1+0.2 那种浮点尾巴, 摆到卡片上很难看
   const sumWeight = round2(series.reduce((n, s) => n + s.count, 0));
 
@@ -102,6 +135,7 @@ export function computeStats(activities, opts = {}) {
 
   const out = {
     year,
+    range: { from, to, days: yearDays, whole: !ranged },  // whole=true 表示整年
     activities: inYear.length,
     days: { total: yearDays, active: activeDates.length, blank: Math.max(0, yearDays - activeDates.length),
             rate: yearDays ? round2(activeDates.length / yearDays) : 0 },
@@ -149,11 +183,12 @@ export function monthStats(activities, year = 2026, monthIndex = 0) {
 export function summarize(stats) {
   if (!stats || !stats.days) return '';
   const top = stats.byType[0];
-  const bits = [
-    `${stats.year} 年记下 ${stats.activities} 条活动`,
-    `${stats.days.active} 天有痕(占全年 ${Math.round(stats.days.rate * 100)}%)`,
-    `总投入 ${stats.weight.sum}`,
-  ];
+  const r = stats.range;
+  // 给了区间就说区间, 别再讲"占全年"——秘书交的是这段时间的账
+  const head = !r || r.whole
+    ? [`${stats.year} 年记下 ${stats.activities} 条活动`, `${stats.days.active} 天有痕(占全年 ${Math.round(stats.days.rate * 100)}%)`]
+    : [`${r.from} 至 ${r.to}(${r.days} 天)记下 ${stats.activities} 条活动`, `${stats.days.active} 天有痕(占这段 ${Math.round(stats.days.rate * 100)}%)`];
+  const bits = [...head, `总投入 ${stats.weight.sum}`];
   if (top) bits.push(`最多的是「${top.name}」(占 ${Math.round(top.share * 100)}%)`);
   if (stats.streak.longest > 1) bits.push(`最长连着做了 ${stats.streak.longest} 天(${stats.streak.longestFrom} 起)`);
   if (stats.busiest) bits.push(`最忙是 ${stats.busiest.date}`);

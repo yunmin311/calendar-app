@@ -18,7 +18,7 @@ export { ACTIVITY_TYPES, PALETTES, SEAL, MAX_LEVEL, sampleActivities } from '../
 // —— 建模:活动 → 每日契约序列 / 渲染视图模型 ——
 export { toDailySeries, toRecordModel, aggregateByDay } from '../data/activity.js';
 // —— 统计:活动 → 派生统计(总量/活跃天/连续天/分类分布/按月/最忙/可选按人分组)——
-export { computeStats, monthStats, summarize } from '../data/stats.js';
+export { computeStats, monthStats, summarize, monthRange, daysBack } from '../data/stats.js';
 // —— 渲染:整年长条 / 单月详情(印刷大件)——
 export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
@@ -62,6 +62,7 @@ export function createRecord(activities = [], opts = {}) {
     stats: (o = {}) => computeStats(acts, { year, ...o }),
     // 可嵌入小件:塞进侧栏/卡片/仪表盘, 同页放几个都行
     stripSVG: (o = {}) => renderStrip(model, { variant, texture: tex, ...o }),
-    statCardSVG: (o = {}) => renderStatCard(computeStats(acts, { year }), { variant, texture: tex, ...o }),
+    // o 里可给 from/to(只算这段, 卡片右上角会标出区间)与 groupBy
+    statCardSVG: (o = {}) => renderStatCard(computeStats(acts, { year, from: o.from, to: o.to }), { variant, texture: tex, ...o }),
   };
 }

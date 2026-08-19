@@ -173,10 +173,13 @@ export function renderStatCard(stats, opts = {}) {
   p.push(`<defs>${t.defs}</defs>`);
   p.push(R(0, 0, W, H, c.paper));
 
-  // 报头
+  // 报头:右上角标明这张卡算的是哪一段(整年就写年份, 给了区间就写区间)
   let y = pad + 5.5;
+  const period = s.range && !s.range.whole
+    ? `${String(s.range.from).slice(5)} → ${String(s.range.to).slice(5)}`
+    : String(s.year ?? '');
   p.push(T(pad, y, opts.title || '活动留痕', { size: 5.4, font: KAI, fill: c.ink, spacing: 1 }));
-  p.push(T(W - pad, y, String(s.year ?? ''), { size: 5, font: SER, fill: c.inkSoft, anchor: 'end' }));
+  p.push(T(W - pad, y, period, { size: s.range && !s.range.whole ? 3.6 : 5, font: SER, fill: c.inkSoft, anchor: 'end' }));
   y += 3.2;
   p.push(`<line x1="${pad}" y1="${r(y)}" x2="${r(W - pad)}" y2="${r(y)}" stroke="${c.ink}" stroke-width="0.35"/>`);
 
