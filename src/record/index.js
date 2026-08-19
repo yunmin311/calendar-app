@@ -19,9 +19,11 @@ export { ACTIVITY_TYPES, PALETTES, SEAL, MAX_LEVEL, sampleActivities } from '../
 export { toDailySeries, toRecordModel, aggregateByDay } from '../data/activity.js';
 // —— 统计:活动 → 派生统计(总量/活跃天/连续天/分类分布/按月/最忙/可选按人分组)——
 export { computeStats, monthStats, summarize } from '../data/stats.js';
-// —— 渲染:整年长条 / 单月详情 ——
+// —— 渲染:整年长条 / 单月详情(印刷大件)——
 export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
+// —— 可嵌入小件:活动带 / 统计卡(同页可放无限个, id 自动隔离)——
+export { renderStrip, renderStatCard } from '../embed/index.js';
 // —— 导出:印刷 PDF(浏览器下载 / 纯字节)+ 拓质栅格化 ——
 export { exportRecordPDF, buildRecordPdfBytes, rasterizeRecordTexture } from '../poster/exportPdf.js';
 // —— 手工质感:可编辑、可复用的程序化纹理(拓质/扎染/手绘/拓扑)——
@@ -31,6 +33,7 @@ import { toRecordModel } from '../data/activity.js';
 import { computeStats } from '../data/stats.js';
 import { renderRecord } from '../poster/renderRecord.js';
 import { renderMonth } from '../poster/renderMonth.js';
+import { renderStrip, renderStatCard } from '../embed/index.js';
 
 export const VARIANTS = ['editorial-rubbing', 'tuogu-ink']; // B 暖·拓质(默认) / A 全拓·墨
 
@@ -57,5 +60,8 @@ export function createRecord(activities = [], opts = {}) {
     monthSVG: (m = 0, o = {}) => renderMonth(model, m, { variant, texture: tex, ...o }),
     // 秘书那一半:统计按需算(o.groupBy 可按任意字段分组, 如将来的 actor)
     stats: (o = {}) => computeStats(acts, { year, ...o }),
+    // 可嵌入小件:塞进侧栏/卡片/仪表盘, 同页放几个都行
+    stripSVG: (o = {}) => renderStrip(model, { variant, texture: tex, ...o }),
+    statCardSVG: (o = {}) => renderStatCard(computeStats(acts, { year }), { variant, texture: tex, ...o }),
   };
 }

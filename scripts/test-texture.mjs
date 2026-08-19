@@ -56,6 +56,17 @@ ok('字符串选预设', resolveTexture('handdrawn', c).name === 'handdrawn');
 ok('对象选预设 + 覆参', (() => { const t = resolveTexture({ name: 'topographic', lineOp: 0.9 }, c); return t.name === 'topographic' && t.params.lineOp === 0.9; })());
 ok('name 不会漏进参数', resolveTexture({ name: 'tiedye' }, c).params.name === undefined);
 
+console.log('\n[5b] 尺寸自适应: 元件越小, 非拓质预设也同步提频(否则花纹相对变巨)');
+ok('拓扑频率随 freqMul 提高', resolveTexture('topographic', c, { freqMul: 4 }).params.freq === TEXTURE_DEFAULTS.topographic.freq * 4,
+  resolveTexture('topographic', c, { freqMul: 4 }).params.freq);
+ok('手绘两轴频率(字符串)也能缩放', resolveTexture('handdrawn', c, { freqMul: 2 }).params.grainFreq === '1.8 1.8',
+  resolveTexture('handdrawn', c, { freqMul: 2 }).params.grainFreq);
+ok('扎染揉皱频率随之', Math.abs(resolveTexture('tiedye', c, { freqMul: 3 }).params.warpFreq - TEXTURE_DEFAULTS.tiedye.warpFreq * 3) < 1e-6,
+  resolveTexture('tiedye', c, { freqMul: 3 }).params.warpFreq);
+ok('调用方显式给频率则以调用方为准', resolveTexture({ name: 'topographic', freq: 0.5 }, c, { freqMul: 4 }).params.freq === 0.5);
+ok('freqMul=1 时原样', resolveTexture('topographic', c).params.freq === TEXTURE_DEFAULTS.topographic.freq);
+ok('缩放不污染默认值', TEXTURE_DEFAULTS.topographic.freq === 0.012 && TEXTURE_DEFAULTS.handdrawn.grainFreq === '0.9 0.9');
+
 console.log('\n[6] 三条渲染路径都吃到纹理');
 const acts = sampleActivities(2026);
 const rec = createRecord(acts, { year: 2026 });

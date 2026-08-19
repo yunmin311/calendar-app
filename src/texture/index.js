@@ -141,6 +141,15 @@ const BUILDERS = {
   rubbing: buildRubbing, tiedye: buildTiedye, handdrawn: buildHanddrawn, topographic: buildTopographic,
 };
 
+// 各预设里"属于噪声频率"的参数(尺寸自适应时按元件大小同步提频, 见 resolveTexture)
+const FREQ_KEYS = {
+  tiedye: ['warpFreq'], handdrawn: ['grainFreq', 'hatchFreq'], topographic: ['freq'],
+};
+// 频率可能是数字, 也可能是 "fx fy" 两轴字符串(各向异性), 都要能缩放
+const scaleFreq = (v, mul) => (typeof v === 'string'
+  ? v.trim().split(/\s+/).map((n) => num(Number(n) * mul)).join(' ')
+  : num(Number(v) * mul));
+
 // 预设清单(供 UI / 图例 / 遍历)
 export const TEXTURE_PRESETS = [
   { name: 'rubbing', label: '拓质' },
@@ -178,7 +187,17 @@ export function texture(name = 'rubbing', overrides = {}) {
 export function resolveTexture(texOpt, c, scale = {}) {
   const { name: rawName, ...overrides } = (texOpt && typeof texOpt === 'object') ? texOpt : {};
   const name = typeof texOpt === 'string' ? texOpt : rawName;
-  if (name && name !== 'rubbing') return texture(name, overrides);
+  if (name && name !== 'rubbing') {
+    // 噪声频率以 A1 长条为基准定的; 元件越小, 同频率的花纹相对越"巨"
+    // (拓扑在 120mm 卡上一个波都铺不满 → 变绸缎光斑)。故按 scale.freqMul 同步提频,
+    // 让花纹密度在任何尺寸的元件上看起来一致。调用方显式给了频率则以调用方为准。
+    const mul = scale.freqMul || 1;
+    const scaled = {};
+    if (mul !== 1) for (const k of FREQ_KEYS[name] || []) {
+      if (overrides[k] === undefined) scaled[k] = scaleFreq(TEXTURE_DEFAULTS[name][k], mul);
+    }
+    return texture(name, { ...scaled, ...overrides });
+  }
   // 拓质(默认):吃变体调好的频率/透明度 + 尺寸自适应,再让调用方覆盖
   return texture('rubbing', {
     mottleFreq: (c.texFreq ?? 0.06) * (scale.freqMul || 1),
