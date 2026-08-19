@@ -327,7 +327,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
       rect(sx - 0.6, sy - 0.6, s + 1.2, s + 1.2, paperC, 0.9);   // 纸色晕: 印章落在同色系格底上也跳得出来
       rect(sx, sy, s, s, sealC);
       page.drawRectangle({ x: X(sx + 0.6), y: Y(sy + s - 0.6), width: (s - 1.2) * MM, height: (s - 1.2) * MM, borderColor: paperC, borderWidth: 0.3 * MM });
-      if (cjk) text(sx - 0.5, sy + s + 3.2, clip(msByDay[d], 6), 2.7, sealC, cjk);
+      if (cjk) text(sx + s, sy + s + 3.2, clip(msByDay[d], 6), 2.7, sealC, cjk, 'end'); // 贴印章右缘往左排, 不冲出格子
     }
     if (rec && rec.note && cjk) text(x + 2, y + g.rowH - 2.4, clip(rec.note, 6), 2.9, inkC, cjk, 'left', 0.82);
   }

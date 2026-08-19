@@ -60,7 +60,8 @@ function seal(x, y, s, label, c, withLabel) {
   return R(x - 0.6, y - 0.6, s + 1.2, s + 1.2, c.paper, 'opacity="0.9"')
     + R(x, y, s, s, c.seal)
     + `<rect x="${r(x + 0.6)}" y="${r(y + 0.6)}" width="${r(s - 1.2)}" height="${r(s - 1.2)}" fill="none" stroke="${c.paper}" stroke-width="0.3"/>`
-    + (withLabel && label ? T(x - 0.5, y + s + 3.2, clip(label, 6), { size: 2.7, font: KAI, fill: c.seal, anchor: 'start' }) : '');
+    // 签贴着印章右缘往左排:原来从印章左边往右写, 6 个字会冲出格子压到隔壁那天(实测)
+    + (withLabel && label ? T(x + s, y + s + 3.2, clip(label, 6), { size: 2.7, font: KAI, fill: c.seal, anchor: 'end' }) : '');
 }
 
 export function renderMonth(model, monthIndex = 0, opts = {}) {
