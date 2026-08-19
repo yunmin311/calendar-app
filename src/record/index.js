@@ -17,6 +17,8 @@
 export { ACTIVITY_TYPES, PALETTES, SEAL, MAX_LEVEL, sampleActivities } from '../data/activity.js';
 // —— 建模:活动 → 每日契约序列 / 渲染视图模型 ——
 export { toDailySeries, toRecordModel, aggregateByDay } from '../data/activity.js';
+// —— 统计:活动 → 派生统计(总量/活跃天/连续天/分类分布/按月/最忙/可选按人分组)——
+export { computeStats, monthStats, summarize } from '../data/stats.js';
 // —— 渲染:整年长条 / 单月详情 ——
 export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
@@ -26,6 +28,7 @@ export { exportRecordPDF, buildRecordPdfBytes, rasterizeRecordTexture } from '..
 export { texture, resolveTexture, TEXTURE_PRESETS, TEXTURE_DEFAULTS, isTexturePreset } from '../texture/index.js';
 
 import { toRecordModel } from '../data/activity.js';
+import { computeStats } from '../data/stats.js';
 import { renderRecord } from '../poster/renderRecord.js';
 import { renderMonth } from '../poster/renderMonth.js';
 
@@ -43,7 +46,8 @@ export function createRecord(activities = [], opts = {}) {
   const year = opts.year || 2026;
   const variant = VARIANTS.includes(opts.variant) ? opts.variant : 'editorial-rubbing';
   const tex = opts.texture;
-  const model = toRecordModel(Array.isArray(activities) ? activities : [], year, variant);
+  const acts = Array.isArray(activities) ? activities : [];
+  const model = toRecordModel(acts, year, variant);
   return {
     model,
     variant,
@@ -51,5 +55,7 @@ export function createRecord(activities = [], opts = {}) {
     texture: tex,
     yearSVG: (o = {}) => renderRecord(model, { variant, texture: tex, ...o }),
     monthSVG: (m = 0, o = {}) => renderMonth(model, m, { variant, texture: tex, ...o }),
+    // 秘书那一半:统计按需算(o.groupBy 可按任意字段分组, 如将来的 actor)
+    stats: (o = {}) => computeStats(acts, { year, ...o }),
   };
 }
