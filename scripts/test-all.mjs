@@ -11,6 +11,7 @@ const SUITES = [
   ['可嵌入小件', 'test-embed.mjs'],
   ['类型开放', 'test-open-types.mjs'],
   ['印刷 PDF(整年+单月)', 'test-record-pdf.mjs'],
+  ['印刷坐标=屏幕几何', 'test-print-geometry.mjs'],
 ];
 
 let failed = 0;

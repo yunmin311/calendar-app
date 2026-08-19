@@ -9,6 +9,7 @@
 import { geometry, cellRect, dayCenterX } from './layout.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
 import { RECORD_VARIANTS } from './renderRecord.js';
+import { MONTH_PAGE, monthGeometry, weeksInMonth, clampMonth } from './renderMonth.js';
 import { toRecordModel } from '../data/activity.js';
 import { resolveTexture } from '../texture/index.js';
 
@@ -42,10 +43,11 @@ async function fetchFont(url) {
 // 仅浏览器可栅格化(需 canvas); node 无 canvas → 返回 null, 退化为纯矢量(纸=平涂)。
 // 生成「纸+拓质」背景 PNG 字节。注意: 输出是 RGB PNG(pdf-lib 只吃 RGB/灰度), 印刷时由 RIP 转 CMYK;
 // 矢量层(文字/线/色块/裁切标)才是真 CMYK。做扎实: 任何失败都返回 null → 上层退化纯矢量, 绝不拖垮导出。
-export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', pxW, pxH, texture: texOpt }) {
+export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', pxW, pxH, texture: texOpt, freqMul = 1 }) {
   const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
-  // mm 视口 → 与屏幕渲染同频同参: 走同一个 texture 模块(单一真源, 印刷不会跟屏幕漂)
-  const tex = resolveTexture(texOpt, c);
+  // mm 视口 → 与屏幕渲染同频同参: 走同一个 texture 模块(单一真源, 印刷不会跟屏幕漂)。
+  // freqMul 必须与对应渲染函数一致(整年长条 1 / 单月卡 2.2), 否则印出来的质感比屏幕粗。
+  const tex = resolveTexture(texOpt, c, { freqMul });
   const t = tex.build(mediaWmm, mediaHmm, 'px');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${mediaWmm} ${mediaHmm}" width="${pxW}" height="${pxH}" preserveAspectRatio="none">`
     + `<defs>${t.defs}</defs>`
@@ -54,7 +56,7 @@ export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbi
     + `</svg>`;
 }
 
-export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', texture: texOpt, dpi = 300, timeoutMs = 15000 } = {}) {
+export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', texture: texOpt, freqMul = 1, dpi = 300, timeoutMs = 15000 } = {}) {
   try {
     if (typeof document === 'undefined' || typeof Image === 'undefined') return null; // node: 跳过, 走矢量退化
     const MAXPX = 12000;          // canvas 长边上限(A1+出血 @300dpi≈10004px)
@@ -67,7 +69,7 @@ export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'ed
     if (pxW * pxH > MAXAREA) { const k = Math.sqrt(MAXAREA / (pxW * pxH)); pxW = Math.round(pxW * k); pxH = Math.round(pxH * k); effDpi = Math.round(effDpi * k); }
     if (effDpi < dpi) console.warn(`[拓质栅格化] ${dpi}dpi 超上限, 实际 ${effDpi}dpi (${pxW}x${pxH})`);
 
-    const svg = buildTextureSVG({ mediaWmm, mediaHmm, variant, pxW, pxH, texture: texOpt });
+    const svg = buildTextureSVG({ mediaWmm, mediaHmm, variant, pxW, pxH, texture: texOpt, freqMul });
     const img = await new Promise((resolve) => {
       let done = false;
       const finish = (v) => { if (!done) { done = true; resolve(v); } };
@@ -224,6 +226,141 @@ export async function exportRecordPDF(activities, year = 2026, variant = 'editor
   ]);
   const bytes = await buildRecordPdfBytes(model, { fonts: { latin, latinBold, cjk }, textureImage });
   downloadPdf(bytes, `活动留痕-${year}-A1.pdf`);
+  return { hasTexture: !!textureImage, hasCjk: !!cjk };
+}
+
+// ============================================================================
+// 单月卡 · 印刷 PDF —— 与整年长条同规格(出血 / 裁切标 / CMYK / 子集嵌字 / 拓质位图),
+// 只是版面换成 renderMonth 那张竖版周历卡(210×280mm)。几何走 monthGeometry(),
+// 与屏幕渲染同一真源, 所以「预览=成品」。
+// ============================================================================
+export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
+  const { PDFDocument, StandardFonts, cmyk } = await import('../vendor/pdf-lib.esm.js');
+  const fonts = opts.fonts || {};
+  const variant = model.variant || 'editorial-rubbing';
+  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const mono = !!c.mono;
+
+  const hexToCmyk = (hex) => {
+    const h = String(hex).replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16) / 255, g2 = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+    const k = 1 - Math.max(r, g2, b);
+    if (k >= 1) return cmyk(0, 0, 0, 1);
+    return cmyk((1 - r - k) / (1 - k), (1 - g2 - k) / (1 - k), (1 - b - k) / (1 - k), k);
+  };
+
+  const { year, categories = [], days = {}, milestones = [] } = model;
+  const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
+  const m = clampMonth(monthIndex);
+  const dim = daysInMonth(year, m);
+  const firstDow = dow(year, m, 1);
+  const g = monthGeometry(weeksInMonth(year, m));
+  const mediaWmm = MONTH_PAGE.w + 2 * MONTH_PAGE.BLEED, mediaHmm = MONTH_PAGE.h + 2 * MONTH_PAGE.BLEED;
+
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([mediaWmm * MM, mediaHmm * MM]);
+
+  let latin, cjk = null;
+  if (fonts.latin || fonts.cjk) { const fk = await import('../vendor/fontkit.mjs'); doc.registerFontkit(fk.default || fk); }
+  latin = fonts.latin ? await doc.embedFont(fonts.latin, { subset: true }) : await doc.embedFont(StandardFonts.Helvetica);
+  if (fonts.cjk) cjk = await doc.embedFont(fonts.cjk, { subset: true });
+  const kai = cjk || latin; // 无中文字时 CJK 文本走缺口(见字体授权文档)
+
+  const B = MONTH_PAGE.BLEED;
+  const X = (xmm) => (xmm + B) * MM;
+  const Y = (ymm) => (mediaHmm - (ymm + B)) * MM;
+  const rect = (xmm, ymm, wmm, hmm, color, opacity = 1) => page.drawRectangle({ x: X(xmm), y: Y(ymm + hmm), width: wmm * MM, height: hmm * MM, color, opacity });
+  const stroke = (xmm, ymm, wmm, hmm, color, wmmLine) => page.drawRectangle({ x: X(xmm), y: Y(ymm + hmm), width: wmm * MM, height: hmm * MM, borderColor: color, borderWidth: wmmLine * MM });
+  const line = (x1, y1, x2, y2, color, wmm) => page.drawLine({ start: { x: X(x1), y: Y(y1) }, end: { x: X(x2), y: Y(y2) }, thickness: wmm * MM, color });
+  const text = (xmm, ymm, str, sizeMM, color, f = latin, align = 'left', opacity = 1) => {
+    if (str == null || str === '') return;
+    let w = 0; try { w = f.widthOfTextAtSize(String(str), sizeMM * MM); } catch { return; } // 缺字形则跳过
+    const x = align === 'end' ? X(xmm) - w : align === 'middle' ? X(xmm) - w / 2 : X(xmm);
+    page.drawText(String(str), { x, y: Y(ymm), size: sizeMM * MM, font: f, color, opacity });
+  };
+  const clip = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+
+  const inkC = hexToCmyk(c.ink), softC = hexToCmyk(c.inkSoft), lineC = hexToCmyk(c.line),
+        sealC = hexToCmyk(c.seal), paperC = hexToCmyk(c.paper);
+
+  // ① 背景: 拓质位图(浏览器)或平涂纸(node 退化)
+  if (opts.textureImage) {
+    const png = await doc.embedPng(opts.textureImage);
+    page.drawImage(png, { x: 0, y: 0, width: mediaWmm * MM, height: mediaHmm * MM });
+  } else {
+    page.drawRectangle({ x: 0, y: 0, width: mediaWmm * MM, height: mediaHmm * MM, color: paperC });
+  }
+
+  // ② 报头: 月名 + 月号 + 年 + 当月统计(与屏幕同口径, 都从 model.days 数)
+  let activeDays = 0, sumW = 0;
+  for (let d = 1; d <= dim; d++) { const rec = days[iso(year, m, d)]; if (rec) { activeDays++; sumW += rec.count || 0; } }
+  text(g.M.l, g.M.t + 14, MONTHS_ZH[m], 15, inkC, kai);
+  text(g.M.l + (mono ? 34 : 40), g.M.t + 13, MONTHS_NUM[m], 4.4, softC, latin);
+  text(g.gridRight, g.M.t + 6, String(year), 8, inkC, mono ? kai : latin, 'end');
+  text(g.gridRight, g.M.t + 12.5, `${activeDays} 天有痕 · 投入 ${sumW}`, 3, softC, kai, 'end');
+  line(g.M.l, g.ruleY, g.gridRight, g.ruleY, inkC, 0.5);
+
+  // ③ 星期表头(周日走朱砂)
+  const WK = ['日', '一', '二', '三', '四', '五', '六'];
+  for (let i = 0; i < 7; i++) {
+    text(g.gridLeft + (i + 0.5) * g.colW, g.M.t + g.HEAD_H + 4.5, WK[i], 3.4, i === 0 ? sealC : softC, kai, 'middle');
+  }
+
+  // ④ 日格: 墨底(强度)+ 格线 + 日号 + 朱砂里程碑 + 活动标题
+  const msByDay = {};
+  for (const ms of milestones) { const [yy, mo, d] = String(ms.date).split('-').map(Number); if (yy === year && mo - 1 === m) msByDay[d] = ms.label; }
+  for (let d = 1; d <= dim; d++) {
+    const idx = firstDow + d - 1;
+    const col = idx % 7, row = Math.floor(idx / 7);
+    const x = g.gridLeft + col * g.colW, y = g.gridTop + row * g.rowH;
+    const rec = days[iso(year, m, d)];
+    if (rec && rec.categoryId !== 'publish') {
+      const inten = rec.intensity || 0.4;
+      if (mono) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, inkC, 0.14 + 0.7 * inten);
+      else { const cat = catById[rec.categoryId]; if (cat) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, hexToCmyk(cat.color), 0.4 + 0.55 * inten); }
+    }
+    stroke(x, y, g.colW, g.rowH, lineC, 0.25);
+    text(x + 2, y + 5, String(d), 4, col === 0 ? sealC : inkC, latin, 'left', rec ? 1 : 0.4);
+    if (msByDay[d] != null) {
+      const s = 3.8, sx = x + g.colW - 6, sy = y + 2;
+      rect(sx, sy, s, s, sealC);
+      page.drawRectangle({ x: X(sx + 0.6), y: Y(sy + s - 0.6), width: (s - 1.2) * MM, height: (s - 1.2) * MM, borderColor: paperC, borderWidth: 0.3 * MM });
+      if (cjk) text(sx - 0.5, sy + s + 3.2, clip(msByDay[d], 6), 2.7, sealC, cjk);
+    }
+    if (rec && rec.note && cjk) text(x + 2, y + g.rowH - 2.4, clip(rec.note, 6), 2.9, inkC, cjk, 'left', 0.82);
+  }
+
+  // ⑤ 页脚图例(分类多时截断, 与屏幕同规则)
+  line(g.M.l, g.footRuleY, g.gridRight, g.footRuleY, lineC, 0.3);
+  let lx = g.M.l;
+  const legend = [{ color: c.seal, name: '里程碑' },
+    ...(mono ? [{ ink: true, name: '墨深=投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  for (const it of legend) {
+    if (lx + 4.2 + it.name.length * 3 > g.gridRight) break;
+    if (it.ink) rect(lx, g.footBaseline - 2.4, 3, 3, inkC, 0.8);
+    else rect(lx, g.footBaseline - 2.4, 3, 3, hexToCmyk(it.color));
+    text(lx + 4.2, g.footBaseline, it.name, 3, softC, kai);
+    lx += 4.2 + it.name.length * 3 + 5;
+  }
+
+  // ⑥ 四角裁切标(出血区) —— 与整年长条共用同一个函数, 只是换页面尺寸
+  drawCropMarks(page, { BLEED: B, PAGE: { w: MONTH_PAGE.w, h: MONTH_PAGE.h } }, inkC);
+  return doc.save();
+}
+
+// ---- 浏览器: 活动数组 + 月份 → 取字体 + 栅格化拓质 → 生成 → 下载 ----
+export async function exportMonthPDF(activities, year = 2026, monthIndex = 0, variant = 'editorial-rubbing', opts = {}) {
+  const model = toRecordModel(activities, year, variant);
+  const mediaWmm = MONTH_PAGE.w + 2 * MONTH_PAGE.BLEED, mediaHmm = MONTH_PAGE.h + 2 * MONTH_PAGE.BLEED;
+  const [latin, cjk, textureImage] = await Promise.all([
+    fetchFont('/fonts/EBGaramond_400Regular.ttf'),
+    fetchFont('/fonts/LXGWWenKai-Regular.ttf'), // 未放置则 null → CJK 走缺口
+    // 月卡视口比 A1 小 → 频率按同一条规则换算(与 renderMonth 用的 2.2 一致)
+    rasterizeRecordTexture({ mediaWmm, mediaHmm, variant, texture: opts.texture, dpi: opts.dpi || 300, freqMul: 2.2 }),
+  ]);
+  const m = clampMonth(monthIndex);
+  const bytes = await buildMonthPdfBytes(model, m, { fonts: { latin, cjk }, textureImage });
+  downloadPdf(bytes, `活动留痕-${year}-${MONTHS_NUM[m]}月.pdf`);
   return { hasTexture: !!textureImage, hasCjk: !!cjk };
 }
 

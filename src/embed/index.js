@@ -16,6 +16,7 @@ import { MONTHS_NUM, daysInMonth, dow, iso } from '../data/model.js';
 import { PALETTES } from '../data/activity.js';
 import { summarize } from '../data/stats.js';
 import { RECORD_VARIANTS } from '../poster/renderRecord.js';
+import { clampMonth } from '../poster/renderMonth.js';
 import { resolveTexture } from '../texture/index.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
@@ -65,8 +66,8 @@ export function renderStrip(model, opts = {}) {
   const step = cell + gap;
   const showMonths = opts.months !== false;
   const showWeekdays = !!opts.weekdays;
-  const from = Math.max(0, Math.min(11, opts.from ?? 0));
-  const to = Math.max(from, Math.min(11, opts.to ?? 11));
+  const from = clampMonth(opts.from ?? 0);
+  const to = Math.max(from, clampMonth(opts.to ?? 11));
 
   // 收集要画的日子, 换算成 (列=第几周, 行=周几)
   const first = { m: from, d: 1 };

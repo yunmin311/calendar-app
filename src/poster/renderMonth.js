@@ -21,12 +21,35 @@ const T = (x, y, str, o = {}) => {
 const R = (x, y, w, h, fill, extra = '') => `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" fill="${fill}" ${extra}/>`;
 const L = (x1, y1, x2, y2, stroke, w) => `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${stroke}" stroke-width="${w}"/>`;
 const clip = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+// 月份索引规整: 非有限数(NaN/undefined)落回一月, 小数取整, 越界夹住。
+// 不这么做的话 NaN 会一路穿到 daysInMonth 变成"画出一张空月卡"—— 静默出错比报错更坏。
+export const clampMonth = (m) => { const n = Number(m); return Number.isFinite(n) ? Math.max(0, Math.min(11, Math.trunc(n))) : 0; };
 
 const PAGE = { w: 210, h: 280 };
 const M = { l: 16, r: 16, t: 18, b: 16 };
 const HEAD_H = 34;      // 报头
 const WKROW_H = 8;      // 星期表头
 const FOOT_H = 12;      // 页脚图例
+const BLEED = 3;        // 出血(印刷导出用, 屏幕不画)
+
+// 月卡几何单一真源 —— 屏幕渲染与印刷 PDF 共用, 保证「预览=成品」
+// (整年长条那边的对应物是 poster/layout.js)。行高随当月周数变, 故 weeks 是入参。
+export const MONTH_PAGE = { ...PAGE, BLEED };
+export function weeksInMonth(year, m) { return Math.ceil((dow(year, m, 1) + daysInMonth(year, m)) / 7); }
+export function monthGeometry(weeks = 6) {
+  const gridTop = M.t + HEAD_H + WKROW_H;
+  const gridBottom = PAGE.h - M.b - FOOT_H;
+  const gridLeft = M.l, gridRight = PAGE.w - M.r;
+  return {
+    PAGE, BLEED, M, HEAD_H, WKROW_H, FOOT_H,
+    gridTop, gridBottom, gridLeft, gridRight,
+    colW: (gridRight - gridLeft) / 7,
+    rowH: (gridBottom - gridTop) / Math.max(1, weeks),
+    ruleY: M.t + HEAD_H - 6,                 // 报头分隔线
+    footRuleY: PAGE.h - M.b - FOOT_H,        // 页脚分隔线
+    footBaseline: PAGE.h - M.b - FOOT_H * 0.4,
+  };
+}
 
 function seal(x, y, s, label, c, withLabel) {
   return R(x, y, s, s, c.seal)
@@ -40,17 +63,14 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   const mono = !!c.mono;
   const { year, categories = [], days = {}, milestones = [] } = model;
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
-  const m = Math.max(0, Math.min(11, monthIndex));
+  const m = clampMonth(monthIndex);
   const dim = daysInMonth(year, m);
   const firstDow = dow(year, m, 1);           // 1 号是周几(0=日)
-  const weeks = Math.ceil((firstDow + dim) / 7);
+  const weeks = weeksInMonth(year, m);
 
-  // 几何
-  const gridTop = M.t + HEAD_H + WKROW_H;
-  const gridBottom = PAGE.h - M.b - FOOT_H;
-  const gridLeft = M.l, gridRight = PAGE.w - M.r;
-  const colW = (gridRight - gridLeft) / 7;
-  const rowH = (gridBottom - gridTop) / weeks;
+  // 几何(与印刷 PDF 共用同一函数)
+  const g = monthGeometry(weeks);
+  const { gridTop, gridLeft, gridRight, colW, rowH } = g;
 
   // 当月里程碑(date→label)
   const msByDay = {};

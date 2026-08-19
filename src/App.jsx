@@ -4,7 +4,7 @@ import { renderMonth } from './poster/renderMonth.js';
 import { geometry, cellRect } from './poster/layout.js';
 import { MONTHS_ZH, daysInMonth, dow, iso } from './data/model.js';
 import { sampleActivities, toRecordModel, ACTIVITY_TYPES, MAX_LEVEL } from './data/activity.js';
-import { exportRecordPDF } from './poster/exportPdf.js';
+import { exportRecordPDF, exportMonthPDF } from './poster/exportPdf.js';
 
 const YEAR = 2026;
 const WK = ['日', '一', '二', '三', '四', '五', '六'];
@@ -35,10 +35,15 @@ export default function App() {
   const selDay = selDate ? model.days[selDate] : null;
   const selMs = sel ? model.milestones.find((x) => x.date === selDate) : null;
 
+  // 导出当前视图: 整年长条 = A1 横幅, 单月 = 210×280 竖版卡。同一套印刷规格。
   const doExport = async () => {
-    setBusy('正在生成印刷级 PDF(含拓质 300dpi 栅格化)…');
-    try { await exportRecordPDF(activities, YEAR, variant); setBusy(''); }
-    catch (e) { console.error(e); setBusy('导出未完成: ' + (e?.message || e)); }
+    const isMonth = view === 'month';
+    setBusy(`正在生成${isMonth ? `${MONTHS_ZH[monthSel]}单月卡` : '整年长条 A1'}印刷级 PDF(含拓质 300dpi 栅格化)…`);
+    try {
+      if (isMonth) await exportMonthPDF(activities, YEAR, monthSel, variant);
+      else await exportRecordPDF(activities, YEAR, variant);
+      setBusy('');
+    } catch (e) { console.error(e); setBusy('导出未完成: ' + (e?.message || e)); }
   };
 
   return (
@@ -68,7 +73,9 @@ export default function App() {
               onClick={() => setVariant('tuogu-ink')}>A 全拓·墨</button>
           </div>
           <button className="btn" onClick={() => window.print()}>打印预览</button>
-          <button className="btn btn--primary" onClick={doExport}>导出印刷 PDF ▸</button>
+          <button className="btn btn--primary" onClick={doExport}>
+            导出印刷 PDF{view === 'month' ? `(${MONTHS_ZH[monthSel]}卡)` : '(整年 A1)'} ▸
+          </button>
           <button className="btn btn--ghost" onClick={() => { setActivities(sampleActivities(YEAR)); setSel(null); }}>重置示例活动</button>
         </div>
       </header>
