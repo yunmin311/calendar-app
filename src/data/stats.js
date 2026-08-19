@@ -10,7 +10,7 @@
 // groupBy 支持按活动上的任意字段分组(如将来 CO 给了 actor/author 就能按人分),
 // 字段不存在就落到 '(未标注)', 绝不强加字段。
 // ============================================================================
-import { toDailySeries, ACTIVITY_TYPES, MAX_LEVEL, typeOf } from './activity.js';
+import { toDailySeries, ACTIVITY_TYPES, MAX_LEVEL, typeOf, parseDate, weightOf } from './activity.js';
 import { MONTHS_ZH } from './model.js';
 
 const TYPE_NAME = Object.fromEntries(ACTIVITY_TYPES.map((t) => [t.id, t.name]));
@@ -50,39 +50,39 @@ function streaks(dates) {
  * @returns 统计对象(见下面各字段;数量为 0 时全部安全归零, 不抛)
  */
 export function computeStats(activities, opts = {}) {
-  const acts = Array.isArray(activities) ? activities : [];
-  const year = opts.year || 2026;
-  const inYear = acts.filter((a) => a && typeof a.date === 'string' && a.date.slice(0, 4) === String(year));
-  const { series, maxWeight } = toDailySeries(inYear, year);
+  const year = Number(opts.year) || 2026;
+  // 与渲染共用同一个分拣入口(toDailySeries 内部就是它), 所以统计口径与画面口径**不可能**分叉
+  const { series, maxWeight, kept: inYear, dropped } = toDailySeries(activities, year);
 
   const activeDates = series.filter((s) => s.count > 0).map((s) => s.date).sort();
   const yearDays = dayNum(`${year}-12-31`) - dayNum(`${year}-01-01`) + 1; // 365/366 自动对(含闰年)
-  const sumWeight = series.reduce((n, s) => n + s.count, 0);
+  // round2: 小数投入量会带出 0.1+0.2 那种浮点尾巴, 摆到卡片上很难看
+  const sumWeight = round2(series.reduce((n, s) => n + s.count, 0));
 
   // 按活动类型
   const byTypeMap = {};
   for (const a of inYear) {
     const t = typeOf(a); // 与渲染同口径: 没写 type 的归 (未分类), 不能一边算一边不画
     const g = (byTypeMap[t] ||= { id: t, name: TYPE_NAME[t] || t, count: 0, weight: 0, dates: new Set() });
-    g.count++; g.weight += a.weight || 0; g.dates.add(a.date);
+    g.count++; g.weight += weightOf(a); g.dates.add(a.date);
   }
   const byType = Object.values(byTypeMap)
-    .map((g) => ({ id: g.id, name: g.name, count: g.count, weight: g.weight, days: g.dates.size, share: sumWeight ? round2(g.weight / sumWeight) : 0 }))
+    .map((g) => ({ id: g.id, name: g.name, count: g.count, weight: round2(g.weight), days: g.dates.size, share: sumWeight ? round2(g.weight / sumWeight) : 0 }))
     .sort((a, b) => b.weight - a.weight);
 
   // 按月
   const byMonth = Array.from({ length: 12 }, (_, m) => ({ m, name: MONTHS_ZH[m], days: 0, weight: 0, count: 0, types: {} }));
   for (const s of series) {
-    const m = Number(s.date.slice(5, 7)) - 1;
-    if (m < 0 || m > 11) continue;
-    byMonth[m].days++; byMonth[m].weight += s.count;
+    const p = parseDate(s.date);
+    if (!p) continue;
+    byMonth[p.m].days++; byMonth[p.m].weight = round2(byMonth[p.m].weight + s.count);
   }
   for (const a of inYear) {
-    const m = Number(a.date.slice(5, 7)) - 1;
-    if (m < 0 || m > 11) continue;
+    const p = parseDate(a.date);
+    if (!p) continue;
     const t = typeOf(a);
-    byMonth[m].count++;
-    byMonth[m].types[t] = (byMonth[m].types[t] || 0) + (a.weight || 0);
+    byMonth[p.m].count++;
+    byMonth[p.m].types[t] = (byMonth[p.m].types[t] || 0) + weightOf(a);
   }
   for (const mm of byMonth) {
     const e = Object.entries(mm.types).sort((x, y) => y[1] - x[1])[0];
@@ -97,7 +97,8 @@ export function computeStats(activities, opts = {}) {
 
   // 最忙的一天 / 里程碑
   const busiest = series.reduce((best, s) => (!best || s.count > best.count ? s : best), null);
-  const milestones = series.filter((s) => s.milestone).map((s) => ({ date: s.date, label: s.milestone }));
+  // 认 hasMilestone 而不是标题真假 —— 否则没写标题的里程碑会从统计里消失(渲染侧同理)
+  const milestones = series.filter((s) => s.hasMilestone).map((s) => ({ date: s.date, label: s.milestone || '' }));
 
   const out = {
     year,
@@ -112,6 +113,9 @@ export function computeStats(activities, opts = {}) {
     milestones,
     firstDate: activeDates[0] || null,
     lastDate: activeDates[activeDates.length - 1] || null,
+    // 没进画面也没进上面这些数字的活动:日期不合法 / 不在本年 / 根本不是对象。
+    // 摊开来让调用方能提示用户, 而不是悄悄吞掉。
+    dropped,
   };
 
   // 可选:按任意字段分组(为将来"多人"留口, 不强加字段)
@@ -121,12 +125,12 @@ export function computeStats(activities, opts = {}) {
     for (const a of inYear) {
       const k = a[key] == null || a[key] === '' ? UNSET : String(a[key]);
       const g = (gm[k] ||= { key: k, count: 0, weight: 0, dates: new Set(), milestones: 0 });
-      g.count++; g.weight += a.weight || 0; g.dates.add(a.date);
+      g.count++; g.weight += weightOf(a); g.dates.add(a.date);
       if (a.milestone) g.milestones++;
     }
     out.groupBy = key;
     out.groups = Object.values(gm)
-      .map((g) => ({ key: g.key, count: g.count, weight: g.weight, days: g.dates.size, milestones: g.milestones,
+      .map((g) => ({ key: g.key, count: g.count, weight: round2(g.weight), days: g.dates.size, milestones: g.milestones,
                      share: sumWeight ? round2(g.weight / sumWeight) : 0 }))
       .sort((a, b) => b.weight - a.weight);
   }
@@ -136,7 +140,8 @@ export function computeStats(activities, opts = {}) {
 /** 单月统计(渲染月卡的报头数字走这里, 与整年口径同源)。 */
 export function monthStats(activities, year = 2026, monthIndex = 0) {
   const s = computeStats(activities, { year });
-  const m = Math.max(0, Math.min(11, monthIndex));
+  const n = Number(monthIndex);
+  const m = Number.isFinite(n) ? Math.max(0, Math.min(11, Math.trunc(n))) : 0; // 与 clampMonth 同规则
   return s.byMonth[m];
 }
 

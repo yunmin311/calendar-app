@@ -66,6 +66,11 @@ function assignPigments(ids) {
 export const UNTYPED = '(未分类)';
 export const typeOf = (a) => { const t = a && a.type; return t == null || t === '' ? UNTYPED : t; };
 
+// 投入量的唯一取值口径:非数字算 0, 负数算 0。
+// 负数若原样带进统计, 会出现"总投入 5.6、分类合计 0.6"这种自相矛盾(第一版就这样),
+// 而画面上它本来就画不出来(level 0)。渲染与统计都必须走这一个函数。
+export const weightOf = (a) => { const n = Number(a && a.weight); return Number.isFinite(n) ? Math.max(0, n) : 0; };
+
 const TITLES = {
   design:   ['封面稿', '排版', '组件', '海报', '配色'],
   writing:  ['随笔', '文案', '章节', '注释'],
@@ -135,21 +140,53 @@ function levelFor(count, maxW) {
   return Math.max(1, Math.min(MAX_LEVEL, Math.round((count / maxW) * MAX_LEVEL))); // 大跨度: 线性缩放
 }
 
-// 按天聚合
+// 日期校验:必须是 'YYYY-MM-DD', 且是真实存在的一天(2026-02-30 不算)。
+// 不校验的话, 非法日期会一路穿下去 —— 统计把它的投入算进总数, 图上却永远没有那一格
+// (键对不上 iso()), 于是"图与数字打架"; 更糟的是 '2026-13-45' 会让按月统计的下标越界直接抛。
+export function parseDate(s) {
+  if (typeof s !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth(y, mo - 1)) return null;
+  return { y, m: mo - 1, d };
+}
+
+/**
+ * 分拣活动:留下"这一年的、日期合法的", 其余分开计数。
+ * 渲染与统计**共用这一个入口**, 它们才不可能对不上账(这是本组件的核心不变式)。
+ * @returns {{ kept: Array, invalidDate: number, otherYear: number, malformed: number }}
+ */
+export function partitionActivities(activities, year = 2026) {
+  const out = { kept: [], invalidDate: 0, otherYear: 0, malformed: 0 };
+  const y = Number(year);
+  for (const a of Array.isArray(activities) ? activities : []) {
+    if (!a || typeof a !== 'object') { out.malformed++; continue; }
+    const p = parseDate(a.date);
+    if (!p) { out.invalidDate++; continue; }
+    if (p.y !== y) { out.otherYear++; continue; }
+    out.kept.push(a);
+  }
+  return out;
+}
+
+// 按天聚合(只吃已分拣过的活动;单独调用时也会跳过日期非法的)
 export function aggregateByDay(activities) {
   const by = {};
   for (const a of Array.isArray(activities) ? activities : []) {
-    if (!a || typeof a.date !== 'string') continue;
-    const t = typeOf(a), w = Number(a.weight) || 0;
-    const g = (by[a.date] ||= { weight: 0, types: {}, titles: [], milestone: null });
+    if (!a || !parseDate(a.date)) continue;
+    const t = typeOf(a), w = weightOf(a);
+    const g = (by[a.date] ||= { weight: 0, types: {}, titles: [], milestone: null, hasMilestone: false });
     g.weight += w;
     g.types[t] = (g.types[t] || 0) + w;
-    g.titles.push(a.title);
-    if (a.milestone) g.milestone = a.title;
+    if (a.title) g.titles.push(a.title);
+    // 有没有里程碑, 与它叫什么, 是两回事 —— 原来靠 title 真假判断, 标题为空的里程碑会整个消失。
+    if (a.milestone) { g.hasMilestone = true; if (a.title && !g.milestone) g.milestone = a.title; }
   }
   for (const k in by) {
     const g = by[k];
-    g.dominant = Object.entries(g.types).sort((x, y) => y[1] - x[1])[0][0];
+    // 平手时按类型名排序定胜负 —— 否则同一份数据换个数组顺序就换个颜色, 组件的确定性就没了。
+    g.dominant = Object.entries(g.types).sort((x, y) => (y[1] - x[1]) || (x[0] < y[0] ? -1 : 1))[0][0];
   }
   return by;
 }
@@ -157,21 +194,27 @@ export function aggregateByDay(activities) {
 // 活动数组 → 每日契约序列 [{ date, count, level, dominant, note, milestone }]
 // 这是「进 = CO 活动数据数组 → 出 = 每天强度」建模的落点(契约形状 = react-activity-calendar)
 export function toDailySeries(activities, year = 2026) {
-  const by = aggregateByDay(activities);
+  // 先分拣再聚合:别年的数据既不该落格, 也**不该参与 maxWeight**——否则去年一条超大投入
+  // 会把今年的墨深整体压平(实测 1,2,3 会塌成 1,1,1), 是一种看不见的数据损坏。
+  const part = partitionActivities(activities, year);
+  const by = aggregateByDay(part.kept);
   const maxW = Math.max(1, ...Object.values(by).map((g) => g.weight));
   const series = Object.entries(by).map(([date, g]) => ({
     date, count: g.weight, level: levelFor(g.weight, maxW),
-    dominant: g.dominant, note: g.titles[0], milestone: g.milestone,
+    dominant: g.dominant, note: g.titles[0], milestone: g.milestone, hasMilestone: g.hasMilestone,
   }));
   series.sort((a, b) => (a.date < b.date ? -1 : 1));
-  return { year, maxWeight: maxW, maxLevel: MAX_LEVEL, series };
+  return {
+    year, maxWeight: maxW, maxLevel: MAX_LEVEL, series,
+    kept: part.kept,
+    dropped: { invalidDate: part.invalidDate, otherYear: part.otherYear, malformed: part.malformed },
+  };
 }
 
 // 活动 → 渲染视图模型(供 renderRecord / exportPdf 共用)
 // level 是唯一的强度真源: level→墨深(intensity), level 0 不落格(留白), 里程碑=朱砂
 export function toRecordModel(activities, year = 2026, variant = 'editorial-rubbing') {
-  const acts = Array.isArray(activities) ? activities : [];
-  const { maxWeight, series } = toDailySeries(acts, year);
+  const { maxWeight, series, kept: acts, dropped } = toDailySeries(activities, year);
   const pal = PALETTES[variant] || PALETTES['editorial-rubbing'];
   const mono = variant === 'tuogu-ink';
   const categories = ACTIVITY_TYPES.map((t) => ({ id: t.id, name: t.name, color: pal[t.id], render: 'fill' }));
@@ -192,7 +235,9 @@ export function toRecordModel(activities, year = 2026, variant = 'editorial-rubb
   const milestones = [];
   for (const s of series) {
     if (s.level > 0) days[s.date] = { categoryId: s.dominant, count: s.count, level: s.level, intensity: s.level / MAX_LEVEL, note: s.note };
-    if (s.milestone) milestones.push({ date: s.date, label: s.milestone });
+    // 有里程碑就进朱砂通道, 哪怕没写标题(只画印、不写签)
+    if (s.hasMilestone) milestones.push({ date: s.date, label: s.milestone || '' });
   }
-  return { year, variant, categories, days, milestones, maxWeight, maxLevel: MAX_LEVEL };
+  // dropped 带在模型上, 调用方(如 CO)想提示"有 N 条日期不合法/不在本年"时有据可查, 不做静默
+  return { year, variant, categories, days, milestones, maxWeight, maxLevel: MAX_LEVEL, dropped };
 }

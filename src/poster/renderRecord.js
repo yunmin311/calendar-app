@@ -35,9 +35,11 @@ const V = {
 // 导出变体配置, 供 exportPdf 复用同一套色值/纹理参数(单一真源, 屏幕=印刷同参)
 export const RECORD_VARIANTS = V;
 
+// 纸色晕同 renderMonth: 「出版」类的格底也是朱砂, 不套晕印章会糊在自己那类格子上
 function seal(x, y, label, c) {
   const s = 4.2;
-  return R(x, y, s, s, c.seal)
+  return R(x - 0.5, y - 0.5, s + 1, s + 1, c.paper, 'opacity="0.9"')
+    + R(x, y, s, s, c.seal)
     + `<rect x="${r(x + 0.5)}" y="${r(y + 0.5)}" width="${r(s - 1)}" height="${r(s - 1)}" fill="none" stroke="#f4efe3" stroke-width="0.25"/>`
     + T(x + s + 1.2, y + s - 0.9, label || '', { size: 3.0, font: KAI, fill: c.ink, anchor: 'start' });
 }
@@ -88,11 +90,13 @@ export function renderRecord(model, opts = {}) {
       const cell = cellRect(g, m, d);
       if (d > dim) continue;
       const rec = days[iso(year, m, d)];
+      // 注: 「出版」这一类以前被排除在墨格外(留给朱砂印), 结果是没打里程碑标的出版活动
+      // 在图上完全消失、统计里却算着 —— 静默丢数据。现在照常落墨, 朱砂印只认 milestone 标。
       if (c.mono) {
-        if (rec && catById[rec.categoryId]?.id !== 'publish') cells.push(R(cell.x, cell.y, cell.w, cell.h, c.ink, `opacity="${r(0.2 + 0.78 * (rec.intensity || 0.3))}"`));
+        if (rec) cells.push(R(cell.x, cell.y, cell.w, cell.h, c.ink, `opacity="${r(0.2 + 0.78 * (rec.intensity || 0.3))}"`));
       } else {
         if (c.weekendTint && isWeekend(year, m, d)) cells.push(R(cell.x, cell.y, cell.w, cell.h, c.paper2));
-        if (rec) { const cat = catById[rec.categoryId]; if (cat && cat.id !== 'publish') cells.push(R(cell.x, cell.y, cell.w, cell.h, cat.color, `opacity="${r(0.45 + 0.55 * (rec.intensity || 0.4))}"`)); }
+        if (rec) { const cat = catById[rec.categoryId]; if (cat) cells.push(R(cell.x, cell.y, cell.w, cell.h, cat.color, `opacity="${r(0.45 + 0.55 * (rec.intensity || 0.4))}"`)); }
         if (dow(year, m, d) === 0) cells.push(R(cell.x, cell.y + cell.h * 0.22, 0.5, cell.h * 0.56, c.seal));
       }
     }

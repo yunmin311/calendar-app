@@ -36,6 +36,9 @@ const BLEED = 3;        // 出血(印刷导出用, 屏幕不画)
 // (整年长条那边的对应物是 poster/layout.js)。行高随当月周数变, 故 weeks 是入参。
 export const MONTH_PAGE = { ...PAGE, BLEED };
 export function weeksInMonth(year, m) { return Math.ceil((dow(year, m, 1) + daysInMonth(year, m)) / 7); }
+// 月号(01/11)紧跟在月名右边:偏移必须按月名字数算, 写死会被「十一月」「十二月」压住(实测)。
+// 月名 15pt + 字距 2 ≈ 每字 17mm 宽。屏幕与印刷共用此函数, 免得两边各写一套。
+export const monthNumX = (m) => M.l + String(MONTHS_ZH[m] || '').length * 17 + 4;
 export function monthGeometry(weeks = 6) {
   const gridTop = M.t + HEAD_H + WKROW_H;
   const gridBottom = PAGE.h - M.b - FOOT_H;
@@ -51,8 +54,11 @@ export function monthGeometry(weeks = 6) {
   };
 }
 
+// 朱砂印外面套一圈纸色晕 —— 「出版」类的格底也是朱砂, 不套晕的话印章落在自己那类格子上
+// 几乎看不见(实测十一月卡就是这样)。有了这圈晕, 印章在任何底色上都跳得出来。
 function seal(x, y, s, label, c, withLabel) {
-  return R(x, y, s, s, c.seal)
+  return R(x - 0.6, y - 0.6, s + 1.2, s + 1.2, c.paper, 'opacity="0.9"')
+    + R(x, y, s, s, c.seal)
     + `<rect x="${r(x + 0.6)}" y="${r(y + 0.6)}" width="${r(s - 1.2)}" height="${r(s - 1.2)}" fill="none" stroke="${c.paper}" stroke-width="0.3"/>`
     + (withLabel && label ? T(x - 0.5, y + s + 3.2, clip(label, 6), { size: 2.7, font: KAI, fill: c.seal, anchor: 'start' }) : '');
 }
@@ -92,7 +98,7 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
 
   // 报头
   p.push(T(M.l, M.t + 14, MONTHS_ZH[m], { size: 15, font: KAI, fill: c.ink, spacing: 2 }));
-  p.push(T(M.l + (mono ? 34 : 40), M.t + 13, MONTHS_NUM[m].toUpperCase(), { size: 4.4, font: SER, fill: c.inkSoft, spacing: 2 }));
+  p.push(T(monthNumX(m), M.t + 13, MONTHS_NUM[m], { size: 4.4, font: SER, fill: c.inkSoft, spacing: 2 }));
   p.push(T(gridRight, M.t + 6, String(year), { size: 8, font: mono ? KAI : SER, fill: c.ink, anchor: 'end' }));
   p.push(T(gridRight, M.t + 12.5, `${activeDays} 天有痕 · 投入 ${sumW}`, { size: 3, font: KAI, fill: c.inkSoft, anchor: 'end' }));
   p.push(L(M.l, M.t + HEAD_H - 6, gridRight, M.t + HEAD_H - 6, c.ink, 0.5));
@@ -112,7 +118,7 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
     const x = gridLeft + col * colW, y = gridTop + row * rowH;
     const rec = days[iso(year, m, d)];
     // 墨底(强度)
-    if (rec && rec.categoryId !== 'publish') {
+    if (rec) {   // 「出版」也照常落墨(见 renderRecord 同处注释)
       const inten = rec.intensity || 0.4;
       if (mono) cells.push(R(x + 0.6, y + 0.6, colW - 1.2, rowH - 1.2, c.ink, `opacity="${r(0.14 + 0.7 * inten)}"`));
       else {

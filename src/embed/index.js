@@ -114,7 +114,7 @@ export function renderStrip(model, opts = {}) {
     const rec = days[key];
     // 底格: 素纸(留白)
     p.push(R(x, y, cell, cell, c.paper2, `stroke="${c.line}" stroke-width="0.12"`));
-    if (rec && rec.categoryId !== 'publish') {
+    if (rec) {   // 「出版」也照常落墨(见 renderRecord 同处注释)
       const inten = rec.intensity || 0.4;
       const fill = mono ? c.ink : (catById[rec.categoryId]?.color || c.ink);
       p.push(R(x, y, cell, cell, fill, `opacity="${r(mono ? 0.18 + 0.76 * inten : 0.42 + 0.58 * inten)}"`));

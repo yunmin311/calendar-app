@@ -9,7 +9,7 @@
 import { geometry, cellRect, dayCenterX } from './layout.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
 import { RECORD_VARIANTS } from './renderRecord.js';
-import { MONTH_PAGE, monthGeometry, weeksInMonth, clampMonth } from './renderMonth.js';
+import { MONTH_PAGE, monthGeometry, weeksInMonth, clampMonth, monthNumX } from './renderMonth.js';
 import { toRecordModel } from '../data/activity.js';
 import { resolveTexture } from '../texture/index.js';
 
@@ -168,10 +168,10 @@ export async function buildRecordPdfBytes(model, opts = {}) {
       if (d > dim) continue;
       const rec = days[iso(year, m, d)];
       if (mono) {
-        if (rec && rec.categoryId !== 'publish') rect(cell.x, cell.y, cell.w, cell.h, inkC, 0.2 + 0.78 * (rec.intensity || 0.3));
+        if (rec) rect(cell.x, cell.y, cell.w, cell.h, inkC, 0.2 + 0.78 * (rec.intensity || 0.3));
       } else {
         if (c.weekendTint && isWeekend(year, m, d)) rect(cell.x, cell.y, cell.w, cell.h, paper2C, 0.85);
-        if (rec && rec.categoryId !== 'publish') { const cat = catById[rec.categoryId]; if (cat) rect(cell.x, cell.y, cell.w, cell.h, hexToCmyk(cat.color), 0.45 + 0.55 * (rec.intensity || 0.4)); }
+        if (rec) { const cat = catById[rec.categoryId]; if (cat) rect(cell.x, cell.y, cell.w, cell.h, hexToCmyk(cat.color), 0.45 + 0.55 * (rec.intensity || 0.4)); }
         if (dow(year, m, d) === 0) rect(cell.x, cell.y + cell.h * 0.22, 0.5, cell.h * 0.56, sealC);
       }
     }
@@ -187,6 +187,7 @@ export async function buildRecordPdfBytes(model, opts = {}) {
     const cell = cellRect(g, mo - 1, d);
     const s = 4.2;
     if (cjk && ms.label) rect(cell.x + 6, cell.y + 0.6, Math.min(String(ms.label).length * 3.0 + 1.5, g.cellW * 3), 4.4, paperC, 0.72);
+    rect(cell.x + 0.5, cell.y + 0.5, s + 1, s + 1, paperC, 0.9);   // 纸色晕(同屏幕)
     rect(cell.x + 1, cell.y + 1, s, s, sealC);
     page.drawRectangle({ x: X(cell.x + 1.5), y: Y(cell.y + 1 + s - 0.5), width: (s - 1) * MM, height: (s - 1) * MM, color: sealC, borderColor: paperC, borderWidth: 0.25 * MM });
     if (cjk) text(cell.x + 1 + s + 1.2, cell.y + 1 + s - 0.9, ms.label || '', 3.0, inkC, cjk);
@@ -295,7 +296,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
   let activeDays = 0, sumW = 0;
   for (let d = 1; d <= dim; d++) { const rec = days[iso(year, m, d)]; if (rec) { activeDays++; sumW += rec.count || 0; } }
   text(g.M.l, g.M.t + 14, MONTHS_ZH[m], 15, inkC, kai);
-  text(g.M.l + (mono ? 34 : 40), g.M.t + 13, MONTHS_NUM[m], 4.4, softC, latin);
+  text(monthNumX(m), g.M.t + 13, MONTHS_NUM[m], 4.4, softC, latin);   // 偏移按月名字数算, 与屏幕同函数
   text(g.gridRight, g.M.t + 6, String(year), 8, inkC, mono ? kai : latin, 'end');
   text(g.gridRight, g.M.t + 12.5, `${activeDays} 天有痕 · 投入 ${sumW}`, 3, softC, kai, 'end');
   line(g.M.l, g.ruleY, g.gridRight, g.ruleY, inkC, 0.5);
@@ -314,7 +315,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
     const col = idx % 7, row = Math.floor(idx / 7);
     const x = g.gridLeft + col * g.colW, y = g.gridTop + row * g.rowH;
     const rec = days[iso(year, m, d)];
-    if (rec && rec.categoryId !== 'publish') {
+    if (rec) {   // 「出版」也照常落墨(见 renderRecord 同处注释)
       const inten = rec.intensity || 0.4;
       if (mono) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, inkC, 0.14 + 0.7 * inten);
       else { const cat = catById[rec.categoryId]; if (cat) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, hexToCmyk(cat.color), 0.4 + 0.55 * inten); }
@@ -323,6 +324,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
     text(x + 2, y + 5, String(d), 4, col === 0 ? sealC : inkC, latin, 'left', rec ? 1 : 0.4);
     if (msByDay[d] != null) {
       const s = 3.8, sx = x + g.colW - 6, sy = y + 2;
+      rect(sx - 0.6, sy - 0.6, s + 1.2, s + 1.2, paperC, 0.9);   // 纸色晕: 印章落在同色系格底上也跳得出来
       rect(sx, sy, s, s, sealC);
       page.drawRectangle({ x: X(sx + 0.6), y: Y(sy + s - 0.6), width: (s - 1.2) * MM, height: (s - 1.2) * MM, borderColor: paperC, borderWidth: 0.3 * MM });
       if (cjk) text(sx - 0.5, sy + s + 3.2, clip(msByDay[d], 6), 2.7, sealC, cjk);
