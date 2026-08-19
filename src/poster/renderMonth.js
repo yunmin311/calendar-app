@@ -119,6 +119,7 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   const legend = [{ color: c.seal, name: '里程碑' },
     ...(mono ? [{ ink: true, name: '墨深=投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
   for (const it of legend) {
+    if (lx + 4.2 + it.name.length * 3 > gridRight) { p.push(T(lx, fy, '…', { size: 3, fill: c.inkSoft })); break; }
     if (it.ink) p.push(R(lx, fy - 2.4, 3, 3, c.ink, 'opacity="0.8"'));
     else p.push(R(lx, fy - 2.4, 3, 3, it.color, `stroke="${c.line}" stroke-width="0.2"`));
     p.push(T(lx + 4.2, fy, it.name, { size: 3, font: KAI, fill: c.inkSoft, anchor: 'start' }));

@@ -299,7 +299,9 @@ export async function buildRecordPdfBytes(model, opts = {}) {
   let lx = g.contentX;
   const legend = [{ color: c.seal, name: '出版 / 里程碑' },
     ...(mono ? [{ ink: true, name: '墨深 = 当日投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  const legendLimit = g.gridRight - 92; // 右侧留给印刷标注; 分类多时图例排到这儿为止
   for (const it of legend) {
+    if (lx + 4 + it.name.length * 2.8 > legendLimit) break;
     if (it.ink) rect(lx, fb - 2, 2.8, 2.8, inkC, 0.8);
     else rect(lx, fb - 2, 2.8, 2.8, hexToCmyk(it.color));
     text(lx + 4, fb, it.name, 2.8, softC, kai);

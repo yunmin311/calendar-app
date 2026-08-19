@@ -37,6 +37,35 @@ export const PALETTES = {
   },
 };
 
+// 类型可扩展:占位契约的 5 个 CO 类型是"自带的", 但组件要能被任何需要统计的地方复用
+// (会议/复盘/客服…), 喂进未登记的类型不能静默丢格 —— 那会让图和统计数字打架。
+// 未登记类型自动补进分类表, 配一个从下面这组矿物色里按类型名派生的颜色:
+//   同一个类型名永远拿到同一个颜色(与出现顺序、数据多少无关), 换机器/换数据也稳定。
+// 仍是矿物真值一路: 石青 / 胭脂 / 雌黄 / 苍绿 / 紫毫 / 秋香, 都压暗压浊, 落麦纸不跳。
+const EXTRA_PIGMENTS = ['#4a6b8a', '#9a5c6b', '#c08a3e', '#5f7f66', '#6f5b8e', '#8a7a52'];
+const hash = (s) => { let h = 5381; s = String(s); for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h; };
+// 一批未登记类型 → 一批颜色。先按类型名哈希落座(同名尽量总在同一个坑),
+// 坑被占了就顺延到下一个空坑 —— 同一批类型里颜色互不重复(超过色数才回绕)。
+// 先排序再分配, 故与出现顺序、数据多少无关, 只由"这批类型名的集合"决定。
+function assignPigments(ids) {
+  const sorted = [...ids].sort();
+  const taken = new Map();
+  const used = new Set();
+  for (const id of sorted) {
+    let i = hash(id) % EXTRA_PIGMENTS.length;
+    for (let k = 0; k < EXTRA_PIGMENTS.length && used.has(i); k++) i = (i + 1) % EXTRA_PIGMENTS.length;
+    used.add(i);
+    taken.set(id, EXTRA_PIGMENTS[i]);
+    if (used.size === EXTRA_PIGMENTS.length) used.clear(); // 超过色数则回绕重用
+  }
+  return taken;
+}
+
+// 活动没写 type(缺失/空)时的归属:必须有一个落点, 否则统计算它有痕、图上却查不到分类,
+// 那天会静默留白 —— 图与数字打架。统一归到这一类, 渲染与统计都认它。
+export const UNTYPED = '(未分类)';
+export const typeOf = (a) => { const t = a && a.type; return t == null || t === '' ? UNTYPED : t; };
+
 const TITLES = {
   design:   ['封面稿', '排版', '组件', '海报', '配色'],
   writing:  ['随笔', '文案', '章节', '注释'],
@@ -109,10 +138,12 @@ function levelFor(count, maxW) {
 // 按天聚合
 export function aggregateByDay(activities) {
   const by = {};
-  for (const a of activities) {
+  for (const a of Array.isArray(activities) ? activities : []) {
+    if (!a || typeof a.date !== 'string') continue;
+    const t = typeOf(a), w = Number(a.weight) || 0;
     const g = (by[a.date] ||= { weight: 0, types: {}, titles: [], milestone: null });
-    g.weight += a.weight;
-    g.types[a.type] = (g.types[a.type] || 0) + a.weight;
+    g.weight += w;
+    g.types[t] = (g.types[t] || 0) + w;
     g.titles.push(a.title);
     if (a.milestone) g.milestone = a.title;
   }
@@ -139,9 +170,24 @@ export function toDailySeries(activities, year = 2026) {
 // 活动 → 渲染视图模型(供 renderRecord / exportPdf 共用)
 // level 是唯一的强度真源: level→墨深(intensity), level 0 不落格(留白), 里程碑=朱砂
 export function toRecordModel(activities, year = 2026, variant = 'editorial-rubbing') {
-  const { maxWeight, series } = toDailySeries(activities, year);
+  const acts = Array.isArray(activities) ? activities : [];
+  const { maxWeight, series } = toDailySeries(acts, year);
   const pal = PALETTES[variant] || PALETTES['editorial-rubbing'];
+  const mono = variant === 'tuogu-ink';
   const categories = ACTIVITY_TYPES.map((t) => ({ id: t.id, name: t.name, color: pal[t.id], render: 'fill' }));
+  // 数据里出现的未登记类型 → 自动补进分类表(否则渲染查不到分类, 那天会静默留白)
+  const known = new Set(categories.map((c) => c.id));
+  const unknown = [];
+  for (const a of acts) {
+    const id = typeOf(a);
+    if (known.has(id)) continue;
+    known.add(id);
+    unknown.push(id);
+  }
+  const pigments = assignPigments(unknown);
+  for (const id of unknown) {
+    categories.push({ id, name: String(id), color: mono ? pal.design : pigments.get(id), render: 'fill', extra: true });
+  }
   const days = {};
   const milestones = [];
   for (const s of series) {

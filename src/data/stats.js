@@ -10,7 +10,7 @@
 // groupBy 支持按活动上的任意字段分组(如将来 CO 给了 actor/author 就能按人分),
 // 字段不存在就落到 '(未标注)', 绝不强加字段。
 // ============================================================================
-import { toDailySeries, ACTIVITY_TYPES, MAX_LEVEL } from './activity.js';
+import { toDailySeries, ACTIVITY_TYPES, MAX_LEVEL, typeOf } from './activity.js';
 import { MONTHS_ZH } from './model.js';
 
 const TYPE_NAME = Object.fromEntries(ACTIVITY_TYPES.map((t) => [t.id, t.name]));
@@ -62,7 +62,8 @@ export function computeStats(activities, opts = {}) {
   // 按活动类型
   const byTypeMap = {};
   for (const a of inYear) {
-    const g = (byTypeMap[a.type] ||= { id: a.type, name: TYPE_NAME[a.type] || a.type, count: 0, weight: 0, dates: new Set() });
+    const t = typeOf(a); // 与渲染同口径: 没写 type 的归 (未分类), 不能一边算一边不画
+    const g = (byTypeMap[t] ||= { id: t, name: TYPE_NAME[t] || t, count: 0, weight: 0, dates: new Set() });
     g.count++; g.weight += a.weight || 0; g.dates.add(a.date);
   }
   const byType = Object.values(byTypeMap)
@@ -79,8 +80,9 @@ export function computeStats(activities, opts = {}) {
   for (const a of inYear) {
     const m = Number(a.date.slice(5, 7)) - 1;
     if (m < 0 || m > 11) continue;
+    const t = typeOf(a);
     byMonth[m].count++;
-    byMonth[m].types[a.type] = (byMonth[m].types[a.type] || 0) + (a.weight || 0);
+    byMonth[m].types[t] = (byMonth[m].types[t] || 0) + (a.weight || 0);
   }
   for (const mm of byMonth) {
     const e = Object.entries(mm.types).sort((x, y) => y[1] - x[1])[0];

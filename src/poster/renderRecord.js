@@ -119,7 +119,9 @@ export function renderRecord(model, opts = {}) {
   p.push(L(g.contentX, g.footerY, g.gridRight, g.footerY, c.line, 0.3));
   let lx = g.contentX;
   const legend = [{ color: c.seal, name: '出版 / 里程碑' }, ...(c.mono ? [{ ink: true, name: '墨深 = 当日投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  const legendLimit = g.gridRight - 92; // 右侧留给印刷标注; 分类多时图例排到这儿为止
   for (const it of legend) {
+    if (lx + 4 + it.name.length * 2.8 > legendLimit) { p.push(T(lx, fb, '…', { size: 2.8, fill: c.inkSoft })); break; }
     if (it.ink) p.push(R(lx, fb - 2, 2.8, 2.8, c.ink, 'opacity="0.8"'));
     else p.push(R(lx, fb - 2, 2.8, 2.8, it.color, `stroke="${c.line}" stroke-width="0.2"`));
     p.push(T(lx + 4, fb, it.name, { size: 2.8, font: KAI, fill: c.inkSoft, anchor: 'start' }));
