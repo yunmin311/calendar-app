@@ -11,6 +11,7 @@ import { theme } from './theme.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
 import { RECORD_VARIANTS } from './renderRecord.js';
 import { toRecordModel } from '../data/activity.js';
+import { resolveTexture } from '../texture/index.js';
 
 const MM = 2.834645669; // 1mm = 2.834645669pt
 
@@ -144,27 +145,19 @@ export async function exportPosterPDF(model) {
 // 仅浏览器可栅格化(需 canvas); node 无 canvas → 返回 null, 退化为纯矢量(纸=平涂)。
 // 生成「纸+拓质」背景 PNG 字节。注意: 输出是 RGB PNG(pdf-lib 只吃 RGB/灰度), 印刷时由 RIP 转 CMYK;
 // 矢量层(文字/线/色块/裁切标)才是真 CMYK。做扎实: 任何失败都返回 null → 上层退化纯矢量, 绝不拖垮导出。
-export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', pxW, pxH }) {
+export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', pxW, pxH, texture: texOpt }) {
   const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
-  const speckleFilter = c.speckle
-    ? `<filter id="sp"><feTurbulence type="fractalNoise" baseFrequency="0.14" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1.5 1.5 1.5 0 -1.3"/></filter>`
-    : '';
-  const speckleRect = c.speckle
-    ? `<rect width="${mediaWmm}" height="${mediaHmm}" filter="url(#sp)" opacity="${c.speckleOp}" style="mix-blend-mode:screen"/>`
-    : '';
-  // mm 视口 → 频率与屏幕渲染一致: 纸底 + 大斑块 mottle(正片叠底) + 剥蚀 speckle(滤色)
+  // mm 视口 → 与屏幕渲染同频同参: 走同一个 texture 模块(单一真源, 印刷不会跟屏幕漂)
+  const tex = resolveTexture(texOpt, c);
+  const t = tex.build(mediaWmm, mediaHmm, 'px');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${mediaWmm} ${mediaHmm}" width="${pxW}" height="${pxH}" preserveAspectRatio="none">`
-    + `<defs>`
-    + `<filter id="mo" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${c.texFreq}" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>`
-    + speckleFilter
-    + `</defs>`
+    + `<defs>${t.defs}</defs>`
     + `<rect width="${mediaWmm}" height="${mediaHmm}" fill="${c.paper}"/>`
-    + `<rect width="${mediaWmm}" height="${mediaHmm}" filter="url(#mo)" opacity="${c.texOp}" style="mix-blend-mode:multiply"/>`
-    + speckleRect
+    + t.body
     + `</svg>`;
 }
 
-export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', dpi = 300, timeoutMs = 15000 } = {}) {
+export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', texture: texOpt, dpi = 300, timeoutMs = 15000 } = {}) {
   try {
     if (typeof document === 'undefined' || typeof Image === 'undefined') return null; // node: 跳过, 走矢量退化
     const MAXPX = 12000;          // canvas 长边上限(A1+出血 @300dpi≈10004px)
@@ -177,7 +170,7 @@ export async function rasterizeRecordTexture({ mediaWmm, mediaHmm, variant = 'ed
     if (pxW * pxH > MAXAREA) { const k = Math.sqrt(MAXAREA / (pxW * pxH)); pxW = Math.round(pxW * k); pxH = Math.round(pxH * k); effDpi = Math.round(effDpi * k); }
     if (effDpi < dpi) console.warn(`[拓质栅格化] ${dpi}dpi 超上限, 实际 ${effDpi}dpi (${pxW}x${pxH})`);
 
-    const svg = buildTextureSVG({ mediaWmm, mediaHmm, variant, pxW, pxH });
+    const svg = buildTextureSVG({ mediaWmm, mediaHmm, variant, pxW, pxH, texture: texOpt });
     const img = await new Promise((resolve) => {
       let done = false;
       const finish = (v) => { if (!done) { done = true; resolve(v); } };
@@ -328,7 +321,7 @@ export async function exportRecordPDF(activities, year = 2026, variant = 'editor
     fetchFont('/fonts/EBGaramond_400Regular.ttf'),
     fetchFont('/fonts/EBGaramond_700Bold.ttf'),
     fetchFont('/fonts/LXGWWenKai-Regular.ttf'), // 未放置则 null → CJK 走缺口
-    rasterizeRecordTexture({ mediaWmm, mediaHmm, variant, dpi: opts.dpi || 300 }),
+    rasterizeRecordTexture({ mediaWmm, mediaHmm, variant, texture: opts.texture, dpi: opts.dpi || 300 }),
   ]);
   const bytes = await buildRecordPdfBytes(model, { fonts: { latin, latinBold, cjk }, textureImage });
   downloadPdf(bytes, `活动留痕-${year}-A1.pdf`);

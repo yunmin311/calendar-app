@@ -4,6 +4,7 @@
 // 自带一套「卡片」几何(竖版 210×280mm), 不复用 layout.js(那是整年长条)。
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, iso } from '../data/model.js';
 import { RECORD_VARIANTS } from './renderRecord.js';
+import { resolveTexture } from '../texture/index.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
 const SER = 'Georgia,"Times New Roman","Songti SC",serif';
@@ -59,11 +60,12 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   for (let d = 1; d <= dim; d++) { const rec = days[iso(year, m, d)]; if (rec) { activeDays++; sumW += rec.count || 0; } }
 
   const p = [];
+  // 手工质感: 同一套 texture 模块; 小卡片视口小 → 噪声频率调高、透明度压轻(见 scale)
+  const tex = resolveTexture(opts.texture, c, { freqMul: 2.2, opMul: 0.8, speckleFreq: 0.5, speckleOpMul: 0.7 });
+  const texture = tex.build(PAGE.w, PAGE.h, 'mt');
+
   p.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="100%" preserveAspectRatio="xMidYMid meet" font-family='${SER}'>`);
-  p.push(`<defs>`);
-  p.push(`<filter id="mMottle" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${c.texFreq * 2.2}" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>`);
-  if (c.speckle) p.push(`<filter id="mSpeckle"><feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.6 1.6 1.6 0 -1.35"/></filter>`);
-  p.push(`</defs>`);
+  p.push(`<defs>${texture.defs}</defs>`);
 
   // 底: 暖纸
   p.push(R(0, 0, PAGE.w, PAGE.h, c.paper));
@@ -123,9 +125,8 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
     lx += 4.2 + it.name.length * 3 + 5;
   }
 
-  // 拓质(最上层, 轻)
-  p.push(`<rect x="0" y="0" width="${PAGE.w}" height="${PAGE.h}" filter="url(#mMottle)" opacity="${c.texOp * 0.8}" style="mix-blend-mode:multiply"/>`);
-  if (c.speckle) p.push(`<rect x="0" y="0" width="${PAGE.w}" height="${PAGE.h}" filter="url(#mSpeckle)" opacity="${c.speckleOp * 0.7}" style="mix-blend-mode:screen"/>`);
+  // 手工质感(最上层, 轻)
+  p.push(texture.body);
 
   p.push('</svg>');
   return p.join('');

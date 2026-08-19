@@ -22,6 +22,8 @@ export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
 // —— 导出:印刷 PDF(浏览器下载 / 纯字节)+ 拓质栅格化 ——
 export { exportRecordPDF, buildRecordPdfBytes, rasterizeRecordTexture } from '../poster/exportPdf.js';
+// —— 手工质感:可编辑、可复用的程序化纹理(拓质/扎染/手绘/拓扑)——
+export { texture, resolveTexture, TEXTURE_PRESETS, TEXTURE_DEFAULTS, isTexturePreset } from '../texture/index.js';
 
 import { toRecordModel } from '../data/activity.js';
 import { renderRecord } from '../poster/renderRecord.js';
@@ -32,18 +34,22 @@ export const VARIANTS = ['editorial-rubbing', 'tuogu-ink']; // B 暖·拓质(默
 /**
  * 便捷句柄:一次建模,按需吐整年 / 单月 SVG。
  * @param {Array} activities  CO 活动数组(占位形状见 docs/数据契约-占位.md)
- * @param {{year?:number, variant?:string}} opts
- * @returns {{ model, variant, year, yearSVG:()=>string, monthSVG:(m:number)=>string }}
+ * @param {{year?:number, variant?:string, texture?:string|object}} opts
+ *   texture —— 手工质感:预设名('rubbing'|'tiedye'|'handdrawn'|'topographic')
+ *              或 { name, ...要改的参数 }(见 src/texture/index.js 的 TEXTURE_DEFAULTS)
+ * @returns {{ model, variant, year, texture, yearSVG:()=>string, monthSVG:(m:number)=>string }}
  */
 export function createRecord(activities = [], opts = {}) {
   const year = opts.year || 2026;
   const variant = VARIANTS.includes(opts.variant) ? opts.variant : 'editorial-rubbing';
+  const tex = opts.texture;
   const model = toRecordModel(Array.isArray(activities) ? activities : [], year, variant);
   return {
     model,
     variant,
     year,
-    yearSVG: () => renderRecord(model, { variant }),
-    monthSVG: (m = 0) => renderMonth(model, m, { variant }),
+    texture: tex,
+    yearSVG: (o = {}) => renderRecord(model, { variant, texture: tex, ...o }),
+    monthSVG: (m = 0, o = {}) => renderMonth(model, m, { variant, texture: tex, ...o }),
   };
 }

@@ -4,6 +4,7 @@
 //   'tuogu-ink'          A 替换: 活动"拓成墨", 当天做得越多墨越浓(破边+剥蚀), 素纸留白, 朱砂印
 import { geometry, cellRect, dayCenterX } from './layout.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
+import { resolveTexture } from '../texture/index.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
 const SER = 'Georgia,"Times New Roman","Songti SC",serif';
@@ -49,13 +50,15 @@ export function renderRecord(model, opts = {}) {
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
   const p = [];
 
+  // 手工质感: 由 texture 模块统一供给(可换预设/可编辑参数, 见 src/texture/index.js)
+  const tex = resolveTexture(opts.texture, c);
+  const texture = tex.build(g.PAGE.w, g.PAGE.h, 'yt');
+
   p.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.PAGE.w} ${g.PAGE.h}" width="100%" preserveAspectRatio="xMidYMid meet" font-family='${SER}'>`);
   p.push(`<defs>`);
-  p.push(`<filter id="mottle" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${c.texFreq}" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>`);
+  p.push(texture.defs);
   // 拓痕破边: 墨层用 turbulence 位移, 边缘不再是死板矩形(保住密度=墨深)
   p.push(`<filter id="rub" x="-6%" y="-6%" width="112%" height="112%"><feTurbulence type="fractalNoise" baseFrequency="0.09 0.13" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G"/></filter>`);
-  // 剥蚀白点: 低频些的噪声, 缩放下能看见的小飞白
-  if (c.speckle) p.push(`<filter id="speckle"><feTurbulence type="fractalNoise" baseFrequency="0.14" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.5 1.5 1.5 0 -1.3"/></filter>`);
   p.push(`</defs>`);
 
   // 底: 仿古纸
@@ -124,9 +127,8 @@ export function renderRecord(model, opts = {}) {
   }
   p.push(T(g.gridRight, fb, '印刷级 · CMYK · 3mm 出血 · 嵌字', { size: 2.8, font: KAI, fill: c.inkSoft, anchor: 'end' }));
 
-  // 纸面拓印质感(最上层)
-  p.push(`<rect x="0" y="0" width="${g.PAGE.w}" height="${g.PAGE.h}" filter="url(#mottle)" opacity="${c.texOp}" style="mix-blend-mode:multiply"/>`);
-  if (c.speckle) p.push(`<rect x="0" y="0" width="${g.PAGE.w}" height="${g.PAGE.h}" filter="url(#speckle)" opacity="${c.speckleOp}" style="mix-blend-mode:screen"/>`);
+  // 纸面手工质感(最上层)
+  p.push(texture.body);
 
   p.push('</svg>');
   return p.join('');
