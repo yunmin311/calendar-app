@@ -1,19 +1,24 @@
 {
-  "name": "2026-linear-calendar",
+  "name": "activity-record",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "main": "electron-main.js",
   "homepage": "./",
-  "description": "2026线性日历 - 年度规划工具，支持文字输入、颜色标记、打印导出",
+  "description": "活动记录生成器 - 活动数据进，月历留痕(手工质感)+ 统计 + 印刷级 PDF 出",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "electron .",
     "electron:build": "npm run build && electron-builder",
-    "build:standalone": "node scripts/build-standalone.mjs",
-    "test:pdf": "node scripts/test-pdf.mjs",
+    "test": "node scripts/test-all.mjs",
+    "test:texture": "node scripts/test-texture.mjs",
+    "test:stats": "node scripts/test-stats.mjs",
+    "test:embed": "node scripts/test-embed.mjs",
+    "test:types": "node scripts/test-open-types.mjs",
+    "test:pdf": "node scripts/test-record-pdf.mjs",
+    "preview:build": "node scripts/build-texture-studio.mjs && node scripts/build-texture-gallery.mjs && node scripts/build-embed-demo.mjs",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
@@ -63,7 +68,7 @@
       "icon": "public/icon.png"
     }
   },
-  "keywords": ["日历", "线性日历", "年度规划", "2026日历"],
-  "author": "你的名字",
+  "keywords": ["活动记录", "留痕", "月历", "统计", "印刷PDF", "手工质感"],
+  "author": "yunmin311",
   "license": "MIT"
 }
