@@ -60,8 +60,8 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   for (let d = 1; d <= dim; d++) { const rec = days[iso(year, m, d)]; if (rec) { activeDays++; sumW += rec.count || 0; } }
 
   const p = [];
-  // 手工质感: 同一套 texture 模块; 小卡片视口小 → 噪声频率调高、透明度压轻(见 scale)
-  const tex = resolveTexture(opts.texture, c, { freqMul: 2.2, opMul: 0.8, speckleFreq: 0.5, speckleOpMul: 0.7 });
+  // 手工质感: 同一套 texture 模块; 卡片视口比 A1 小 → 只按载体换算噪声频率(见 resolveTexture)
+  const tex = resolveTexture(opts.texture, c, { freqMul: 2.2 });
   const texture = tex.build(PAGE.w, PAGE.h, 'mt');
 
   p.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="100%" preserveAspectRatio="xMidYMid meet" font-family='${SER}'>`);

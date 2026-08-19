@@ -63,9 +63,15 @@ ok('手绘两轴频率(字符串)也能缩放', resolveTexture('handdrawn', c, {
   resolveTexture('handdrawn', c, { freqMul: 2 }).params.grainFreq);
 ok('扎染揉皱频率随之', Math.abs(resolveTexture('tiedye', c, { freqMul: 3 }).params.warpFreq - TEXTURE_DEFAULTS.tiedye.warpFreq * 3) < 1e-6,
   resolveTexture('tiedye', c, { freqMul: 3 }).params.warpFreq);
-ok('调用方显式给频率则以调用方为准', resolveTexture({ name: 'topographic', freq: 0.5 }, c, { freqMul: 4 }).params.freq === 0.5);
+ok('拓质自己的频率也照同一条规则换算', resolveTexture(undefined, c, { freqMul: 2.2 }).params.mottleFreq === c.texFreq * 2.2);
+ok('一条规则不分默认还是调用方给的(配置才能到处照搬)', resolveTexture({ name: 'topographic', freq: 0.02 }, c, { freqMul: 4 }).params.freq === 0.08,
+  resolveTexture({ name: 'topographic', freq: 0.02 }, c, { freqMul: 4 }).params.freq);
 ok('freqMul=1 时原样', resolveTexture('topographic', c).params.freq === TEXTURE_DEFAULTS.topographic.freq);
 ok('缩放不污染默认值', TEXTURE_DEFAULTS.topographic.freq === 0.012 && TEXTURE_DEFAULTS.handdrawn.grainFreq === '0.9 0.9');
+ok('none 预设:干净的纸, 不进预设清单但认这个名', (() => {
+  const t = resolveTexture('none', c, { freqMul: 3 }).build(100, 100, 'n');
+  return t.defs === '' && t.body === '' && !TEXTURE_PRESETS.some((p) => p.name === 'none');
+})());
 
 console.log('\n[6] 三条渲染路径都吃到纹理');
 const acts = sampleActivities(2026);

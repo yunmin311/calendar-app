@@ -23,6 +23,7 @@ const num = (n) => Math.round(Number(n) * 1000) / 1000;
 
 // —— 预设默认参数(overrides 覆盖它;数组类参数整体替换)——
 export const TEXTURE_DEFAULTS = {
+  none: {},
   // 拓质:斑驳(fractalNoise 去饱和 · 正片叠底)+ 剥蚀白飞点(阈值化白噪 · 滤色)
   rubbing: {
     mottleFreq: 0.06, mottleOp: 0.15, mottleBlend: 'multiply',
@@ -137,12 +138,16 @@ function buildTopographic(w, h, id, p) {
   return { defs, body };
 }
 
+// 'none' 不进预设清单, 但认这个名字:宿主要一张干净的纸(或调参台要单独叠质感层)时用。
+const buildNone = () => ({ defs: '', body: '' });
+
 const BUILDERS = {
-  rubbing: buildRubbing, tiedye: buildTiedye, handdrawn: buildHanddrawn, topographic: buildTopographic,
+  rubbing: buildRubbing, tiedye: buildTiedye, handdrawn: buildHanddrawn, topographic: buildTopographic, none: buildNone,
 };
 
 // 各预设里"属于噪声频率"的参数(尺寸自适应时按元件大小同步提频, 见 resolveTexture)
 const FREQ_KEYS = {
+  rubbing: ['mottleFreq', 'speckleFreq'],
   tiedye: ['warpFreq'], handdrawn: ['grainFreq', 'hatchFreq'], topographic: ['freq'],
 };
 // 频率可能是数字, 也可能是 "fx fy" 两轴字符串(各向异性), 都要能缩放
@@ -182,29 +187,28 @@ export function texture(name = 'rubbing', overrides = {}) {
  * 拓质默认路径会吃变体调好的频率与透明度(A1 长条与小月卡各传各的 scale),故原味不变。
  * @param {*} texOpt  渲染 opts.texture
  * @param {object} c  变体配置(含 texFreq/texOp/speckle/speckleOp)
- * @param {object} scale  { freqMul, opMul, speckleFreq, speckleOpMul } 尺寸自适应
+ * @param {object} scale  { freqMul } 载体尺寸自适应(以 A1 长条为 1)
  */
-export function resolveTexture(texOpt, c, scale = {}) {
+export function resolveTexture(texOpt, c = {}, scale = {}) {
   const { name: rawName, ...overrides } = (texOpt && typeof texOpt === 'object') ? texOpt : {};
   const name = typeof texOpt === 'string' ? texOpt : rawName;
-  if (name && name !== 'rubbing') {
-    // 噪声频率以 A1 长条为基准定的; 元件越小, 同频率的花纹相对越"巨"
-    // (拓扑在 120mm 卡上一个波都铺不满 → 变绸缎光斑)。故按 scale.freqMul 同步提频,
-    // 让花纹密度在任何尺寸的元件上看起来一致。调用方显式给了频率则以调用方为准。
-    const mul = scale.freqMul || 1;
-    const scaled = {};
-    if (mul !== 1) for (const k of FREQ_KEYS[name] || []) {
-      if (overrides[k] === undefined) scaled[k] = scaleFreq(TEXTURE_DEFAULTS[name][k], mul);
-    }
-    return texture(name, { ...scaled, ...overrides });
+  const key = BUILDERS[name] ? name : 'rubbing';
+
+  // 拓质(默认)另吃变体调好的纸感参数(暖编辑 / 全拓两版纸不同);其余预设用自己的默认值
+  const d = TEXTURE_DEFAULTS[key];
+  const base = key === 'rubbing'
+    ? { ...d, mottleFreq: c.texFreq ?? d.mottleFreq, mottleOp: c.texOp ?? d.mottleOp,
+        speckle: c.speckle !== false, speckleOp: c.speckleOp ?? d.speckleOp }
+    : { ...d };
+  const merged = { ...base, ...overrides };
+
+  // **全套参数按 A1 长条为基准写;载体只换算频率, 别的一律照搬。**
+  // 就这一条规则(不分默认值还是调用方给的), 所以同一份配置到哪个载体都是同一个样子,
+  // 调参台调出来能直接抄走。频率必须换算是因为元件越小、同频率的花纹相对越"巨" ——
+  // 拓扑在 120mm 卡上一个波都铺不满, 就成了绸缎光斑而不是等高线。
+  const mul = scale.freqMul || 1;
+  if (mul !== 1) for (const k of FREQ_KEYS[key] || []) {
+    if (merged[k] != null) merged[k] = scaleFreq(merged[k], mul);
   }
-  // 拓质(默认):吃变体调好的频率/透明度 + 尺寸自适应,再让调用方覆盖
-  return texture('rubbing', {
-    mottleFreq: (c.texFreq ?? 0.06) * (scale.freqMul || 1),
-    mottleOp: (c.texOp ?? 0.15) * (scale.opMul || 1),
-    speckle: c.speckle !== false,
-    speckleFreq: scale.speckleFreq ?? 0.14,
-    speckleOp: (c.speckleOp ?? 0.22) * (scale.speckleOpMul || 1),
-    ...overrides,
-  });
+  return texture(key, merged);
 }

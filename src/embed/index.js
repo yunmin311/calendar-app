@@ -91,7 +91,7 @@ export function renderStrip(model, opts = {}) {
   const W = gridX + (maxCol + 1) * step - gap + pad;
   const H = gridY + 7 * step - gap + pad;
 
-  const tex = resolveTexture(opts.texture, c, { freqMul: 3.4, opMul: 0.7, speckleFreq: 0.8, speckleOpMul: 0.6 });
+  const tex = resolveTexture(opts.texture, c, { freqMul: 3.4 });
   const pfx = idFor({ k: 'strip', variant, t: tex.name, p: tex.params, W: r(W), H: r(H) }, opts.id);
   const t = tex.build(W, H, pfx);
 
@@ -164,7 +164,7 @@ export function renderStatCard(stats, opts = {}) {
   const headH = 13, metricH = keys.length ? 15 : 0, barH = byType.length ? 12.5 : 0, sumH = withSummary ? 8 : 0;
   const H = pad + headH + metricH + barH + sumH + pad * 0.4;
 
-  const tex = resolveTexture(opts.texture, c, { freqMul: 4.2, opMul: 0.75, speckleFreq: 1.0, speckleOpMul: 0.6 });
+  const tex = resolveTexture(opts.texture, c, { freqMul: 4.2 });
   const pfx = idFor({ k: 'card', variant, t: tex.name, p: tex.params, W: r(W), H: r(H) }, opts.id);
   const t = tex.build(W, H, pfx);
 
