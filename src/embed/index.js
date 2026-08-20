@@ -13,7 +13,7 @@
 //   ② 输出 width="100%" + viewBox, 由容器定尺寸, 不写死像素。
 // ============================================================================
 import { MONTHS_NUM, daysInMonth, dow, iso } from '../data/model.js';
-import { PALETTES } from '../data/activity.js';
+import { PALETTES, assignPigments } from '../data/activity.js';
 import { summarize } from '../data/stats.js';
 import { RECORD_VARIANTS } from '../poster/renderRecord.js';
 import { clampMonth } from '../poster/renderMonth.js';
@@ -126,6 +126,80 @@ export function renderStrip(model, opts = {}) {
       p.push(`<rect x="${r(x + cell * 0.28)}" y="${r(y + cell * 0.28)}" width="${r(cell * 0.44)}" height="${r(cell * 0.44)}" fill="none" stroke="${c.paper}" stroke-width="${r(cell * 0.12)}"/>`);
     }
   }
+
+  p.push(t.body);
+  p.push('</svg>');
+  return p.join('');
+}
+
+/**
+ * 分组横条 —— 「谁做了多少」一眼可比。多人场景的主力件。
+ *
+ * 吃 computeStats 的产物:有 `groups`(给了 groupBy)就按分组画,否则退回按分类画 ——
+ * 所以不给 groupBy 也不会空着,而是变成「哪类做得多」。
+ *
+ * @param {object} stats  computeStats 结果
+ * @param {object} opts
+ *   width(默认 120mm)· max 最多画几行(默认 8)· by 'weight'|'days'|'count'(默认 weight)
+ *   title 抬头 · showMilestones 里程碑数标朱砂点(默认 true)· variant / texture / id
+ */
+export function renderGroupBars(stats, opts = {}) {
+  const variant = opts.variant || 'editorial-rubbing';
+  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const s = stats || {};
+  const by = ['weight', 'days', 'count'].includes(opts.by) ? opts.by : 'weight';
+  const max = Math.max(1, opts.max ?? 8);
+
+  // 有分组就按分组, 没有就退回按分类 —— 不给 groupBy 也不会画出一张空卡
+  const useGroups = Array.isArray(s.groups) && s.groups.length > 0;
+  const rows = (useGroups ? s.groups : (s.byType || []))
+    .map((g) => ({ key: useGroups ? g.key : g.name, id: useGroups ? g.key : g.id, value: g[by] || 0, days: g.days || 0, milestones: g.milestones || 0 }))
+    .filter((x) => x.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, max);
+
+  // 分组没有现成色板 → 按名字派生矿物色(同一批名字拿到同一套色, 与顺序无关)。
+  // A 全拓是单色墨那一版, 条也只用墨 —— 长短已经够分辨, 冒出彩色就破了那身皮。
+  const mono = !!c.mono;
+  const pal = useGroups && !mono ? assignPigments(rows.map((x) => x.id)) : null;
+  const colorOf = (x) => (mono ? c.ink : (useGroups ? pal.get(x.id) : (PALETTES[variant] || PALETTES['editorial-rubbing'])[x.id] || c.ink));
+
+  const W = opts.width ?? 120, pad = 6;
+  const labelW = Math.min(30, W * 0.26), rowH = 6.4, gap = 1.6;
+  const headH = 11;
+  const H = pad + headH + rows.length * (rowH + gap) + pad * 0.6;
+  const top = Math.max(...rows.map((x) => x.value), 1);
+
+  const tex = resolveTexture(opts.texture, c, { freqMul: 4.2 });
+  const pfx = idFor({ k: 'bars', variant, t: tex.name, p: tex.params, W: r(W), H: r(H), n: rows.length }, opts.id);
+  const t = tex.build(W, H, pfx);
+
+  const p = [svgOpen(W, H)];
+  p.push(`<defs>${t.defs}</defs>`);
+  p.push(R(0, 0, W, H, c.paper));
+
+  const unit = { weight: '投入', days: '天', count: '条' }[by];
+  // 抬头:优先 title,其次 groupLabel(人话名, 同 digest),最后才退回字段名
+  const head = opts.title || `按${useGroups ? (opts.groupLabel || s.groupBy || '分组') : '分类'}`;
+  p.push(T(pad, pad + 5, head, { size: 4.4, font: KAI, fill: c.ink, spacing: 1 }));
+  p.push(T(W - pad, pad + 5, unit, { size: 2.8, font: KAI, fill: c.inkSoft, anchor: 'end' }));
+  p.push(`<line x1="${pad}" y1="${r(pad + 7.4)}" x2="${r(W - pad)}" y2="${r(pad + 7.4)}" stroke="${c.ink}" stroke-width="0.3"/>`);
+
+  const barX = pad + labelW, barMax = W - pad - barX - 12;
+  rows.forEach((x, i) => {
+    const y = pad + headH + i * (rowH + gap);
+    p.push(T(pad, y + rowH * 0.72, clip(x.key, 6), { size: 3, font: KAI, fill: c.ink }));
+    p.push(R(barX, y, barMax, rowH, c.paper2, `stroke="${c.line}" stroke-width="0.15"`));
+    const w = Math.max(0.6, barMax * (x.value / top));
+    p.push(R(barX, y, w, rowH, colorOf(x), 'opacity="0.85"'));
+    // 里程碑:条尾点几个朱砂小方(最多 5 个, 多了写数字)
+    if (opts.showMilestones !== false && x.milestones > 0) {
+      const n = Math.min(5, x.milestones);
+      for (let k = 0; k < n; k++) p.push(R(barX + w - 1.6 - k * 2.2, y + rowH * 0.28, 1.6, 1.6, c.seal));
+      if (x.milestones > 5) p.push(T(barX + w - 1.6 - n * 2.2, y + rowH * 0.72, `+${x.milestones - 5}`, { size: 2.2, fill: c.seal, anchor: 'end' }));
+    }
+    p.push(T(W - pad, y + rowH * 0.72, String(x.value), { size: 3, font: SER, fill: c.inkSoft, anchor: 'end' }));
+  });
 
   p.push(t.body);
   p.push('</svg>');

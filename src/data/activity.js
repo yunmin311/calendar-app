@@ -47,7 +47,7 @@ const hash = (s) => { let h = 5381; s = String(s); for (let i = 0; i < s.length;
 // 一批未登记类型 → 一批颜色。先按类型名哈希落座(同名尽量总在同一个坑),
 // 坑被占了就顺延到下一个空坑 —— 同一批类型里颜色互不重复(超过色数才回绕)。
 // 先排序再分配, 故与出现顺序、数据多少无关, 只由"这批类型名的集合"决定。
-function assignPigments(ids) {
+export function assignPigments(ids) {
   const sorted = [...ids].sort();
   const taken = new Map();
   const used = new Set();

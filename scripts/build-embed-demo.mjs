@@ -21,6 +21,12 @@ const team = acts.map((a, i) => ({ ...a, actor: NAMES[i % NAMES.length] }));
 const teamRec = createRecord(team, { year: 2026 });
 const groups = teamRec.stats({ groupBy: 'actor' }).groups;
 
+// 分组横条 + 简报:秘书那一半的成品样子
+const secretary = `
+<div class="cell"><div class="who">分组横条(谁做了多少)</div>${teamRec.groupBarsSVG({ groupBy: 'actor', groupLabel: '成员' })}</div>
+<div class="cell"><div class="who">同一份数据 · 按天数排</div>${teamRec.groupBarsSVG({ groupBy: 'actor', groupLabel: '成员', by: 'days' })}</div>`;
+const reportText = teamRec.report({ from: '2026-03-14', to: '2026-03-20', groupBy: 'actor', groupLabel: '成员' });
+
 const perPerson = groups.map((g) => {
   const sub = createRecord(team.filter((a) => a.actor === g.key), { year: 2026 });
   return `<div class="cell">
@@ -55,7 +61,7 @@ svg{display:block}
 .note{margin-top:26px;font-size:12.5px;color:var(--soft);border-top:1px solid var(--line);padding-top:12px}
 code{font-family:ui-monospace,Menlo,monospace}</style></head><body>
 <h1>可嵌入小件 · 演示</h1>
-<div class="sub">同一个组件, 塞进不同宿主、不同尺寸、不同质感。<b>本页一共放了 ${4 + groups.length + TEXTURE_PRESETS.length + 3} 个实例</b> —— 滤镜 id 按内容派生, 互不撞车。</div>
+<div class="sub">同一个组件, 塞进不同宿主、不同尺寸、不同质感。<b>本页一共放了 __SVG_COUNT__ 个实例</b> —— 滤镜 id 按内容派生, 互不撞车。</div>
 <div class="sub">全部 <code>width="100%"</code> + viewBox, 由容器定尺寸, 没写死像素。</div>
 
 <h2>① 仪表盘:统计卡 + 整年活动带</h2>
@@ -78,19 +84,25 @@ code{font-family:ui-monospace,Menlo,monospace}</style></head><body>
 <h2>③ 分季度:同组件不同区间</h2>
 <div class="grid g4">${quarters}</div>
 
-<h2>④「多人」:按 actor 分组各出一条(占位契约不含此字段, 有就能分)</h2>
+<h2>④「多人」:按 actor 分组(占位契约不含此字段, 有就能分)</h2>
 <div class="sub">统计层的 <code>groupBy</code> 支持按活动上的任意字段分组; 这里给示例数据补了 <code>actor</code>。</div>
-<div class="grid g2">${perPerson}</div>
+<div class="grid g2">${secretary}</div>
+<div class="grid g2" style="margin-top:14px">${perPerson}</div>
 
-<h2>⑤ 四质感 × 统计卡</h2>
+<h2>⑤ 秘书交差:一段能直接粘贴进对话的文字</h2>
+<div class="sub">同一份数据 → <code>rec.report({from, to, groupBy})</code>,自动跟紧邻的上一期比。</div>
+<pre style="background:#fbf6ea;border:1px solid var(--line);padding:16px;font:13px/1.8 ui-monospace,Menlo,monospace;white-space:pre-wrap;color:#241a0c">${reportText.replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch]))}</pre>
+
+<h2>⑥ 四质感 × 统计卡</h2>
 <div class="grid g4">${texRow}</div>
 
-<h2>⑥ 行内:一句话 + 一条带</h2>
+<h2>⑦ 行内:一句话 + 一条带</h2>
 <div class="inline">今年到目前为止<span class="w">${rec.stripSVG({ from: 0, to: 4, cell: 1.9, gap: 0.35, months: false, pad: 1.5 })}</span>这样, ${s.days.active} 天有痕。</div>
 
 <div class="note">调用: <code>createRecord(acts, {year:2026}).stripSVG({from:0,to:2,cell:3})</code> · <code>.statCardSVG({width:90,texture:'handdrawn'})</code> · <code>.stats({groupBy:'actor'})</code></div>
 </body></html>`;
 
+// 实例数整页拼完再真数一遍 —— 写死的数字迟早跟页面对不上(自己说的数就得对得上)
 const file = join(outDir, '01-可嵌入小件演示.html');
-writeFileSync(file, html, 'utf8');
+writeFileSync(file, html.replace('__SVG_COUNT__', String((html.match(/<svg/g) || []).length)), 'utf8');
 console.log('WROTE', file);

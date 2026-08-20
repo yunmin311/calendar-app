@@ -1,7 +1,7 @@
 // 可嵌入小件自测 —— node 直跑。重点验"同页无限次复用"这条:多实例 id 不撞、
 // 同参数输出确定、尺寸自适应、空数据不崩。
 // 用法: node scripts/test-embed.mjs
-import { renderStrip, renderStatCard } from '../src/embed/index.js';
+import { renderStrip, renderStatCard, renderGroupBars } from '../src/embed/index.js';
 import { createRecord, TEXTURE_PRESETS } from '../src/record/index.js';
 import { sampleActivities } from '../src/data/activity.js';
 import { computeStats } from '../src/data/stats.js';
@@ -79,6 +79,43 @@ const msDates = rec.model.milestones.map((m) => m.date);
 ok('有里程碑数据', msDates.length > 0, msDates.length);
 const sealCount = (rec.stripSVG().match(new RegExp(computeStats(acts, { year: 2026 }).milestones.length ? '#9e3b32' : 'zzz', 'g')) || []).length;
 ok('活动带画出朱砂里程碑', sealCount >= msDates.length, sealCount);
+
+console.log('\n[7] 分组横条(多人场景的主力件)');
+{
+  const team = acts.map((a, i) => ({ ...a, actor: ['阿一', '阿二', '阿三'][i % 3] }));
+  const tr = createRecord(team, { year: 2026 });
+  const bars = tr.groupBarsSVG({ groupBy: 'actor' });
+  ok('是完整 SVG 且无 NaN', bars.startsWith('<svg') && bars.endsWith('</svg>') && !/NaN|undefined/.test(bars));
+  ok('三个人都画出来了', ['阿一', '阿二', '阿三'].every((n) => bars.includes(n)), bars.length);
+  ok('抬头写明按什么分', bars.includes('按actor') || bars.includes('按分组'), bars.slice(0, 300));
+  ok('groupLabel 可给人话名', tr.groupBarsSVG({ groupBy: 'actor', groupLabel: '成员' }).includes('按成员'));
+  ok('title 优先级最高', tr.groupBarsSVG({ groupBy: 'actor', groupLabel: '成员', title: '谁在干活' }).includes('谁在干活'));
+  ok('全拓变体只用墨色, 不冒彩色', (() => {
+    const m = createRecord(team, { year: 2026, variant: 'tuogu-ink' }).groupBarsSVG({ groupBy: 'actor' });
+    return !/#4a6b8a|#9a5c6b|#c08a3e|#5f7f66|#6f5b8e|#8a7a52/.test(m);
+  })());
+  ok('不给 groupBy 也不空着(退回按分类)', (() => { const b = tr.groupBarsSVG(); return b.includes('设计') && b.includes('按分类'); })());
+  ok('by=days 可切', renderGroupBars(tr.stats({ groupBy: 'actor' }), { by: 'days' }).includes('天'));
+  ok('by 非法回退 weight', renderGroupBars(tr.stats({ groupBy: 'actor' }), { by: '乱写' }).includes('投入'));
+  ok('max 限行数', (() => {
+    const one = renderGroupBars(tr.stats({ groupBy: 'actor' }), { max: 1 });
+    return one.includes('阿一') + one.includes('阿二') + one.includes('阿三') === 1;
+  })());
+  ok('同名永远同色(与顺序无关)', renderGroupBars(tr.stats({ groupBy: 'actor' }), {}) === renderGroupBars(createRecord([...team].reverse(), { year: 2026 }).stats({ groupBy: 'actor' }), {}));
+  ok('区间可用', tr.groupBarsSVG({ groupBy: 'actor', from: '2026-03-01', to: '2026-03-31' }).includes('<svg'));
+  ok('里程碑标朱砂点', (() => {
+    const ms = createRecord([{ id: 'a', date: '2026-01-01', type: 'publish', title: 'x', weight: 3, milestone: true, actor: '阿一' }], { year: 2026 });
+    return ms.groupBarsSVG({ groupBy: 'actor' }).includes('#9e3b32');
+  })());
+  ok('空数据不崩', renderGroupBars(createRecord([], { year: 2026 }).stats({ groupBy: 'actor' }), {}).includes('</svg>'));
+  ok('null 不崩', renderGroupBars(null, {}).includes('</svg>'));
+  ok('同页与其它小件 id 不撞', (() => {
+    const a = idsIn(bars), b = idsIn(tr.statCardSVG());
+    return a.every((x) => !b.includes(x));
+  })());
+  ok('宽度自适应', vb(renderGroupBars(tr.stats({ groupBy: 'actor' }), { width: 80 }))[0] === 80);
+  ok('行数越多越高', vb(renderGroupBars(tr.stats({ groupBy: 'actor' }), { max: 3 }))[1] > vb(renderGroupBars(tr.stats({ groupBy: 'actor' }), { max: 1 }))[1]);
+}
 
 console.log(`\n结果: ${pass} 过 / ${fail} 挂`);
 process.exit(fail ? 1 : 0);

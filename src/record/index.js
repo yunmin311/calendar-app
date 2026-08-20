@@ -25,7 +25,7 @@ export { digest, compare, highlights, previousRange, reportFor } from '../data/d
 export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
 // —— 可嵌入小件:活动带 / 统计卡(同页可放无限个, id 自动隔离)——
-export { renderStrip, renderStatCard } from '../embed/index.js';
+export { renderStrip, renderStatCard, renderGroupBars } from '../embed/index.js';
 // —— 导出:印刷 PDF(整年长条 / 单月卡;浏览器下载 / 纯字节)+ 拓质栅格化 ——
 export { exportRecordPDF, buildRecordPdfBytes, exportMonthPDF, buildMonthPdfBytes, rasterizeRecordTexture } from '../poster/exportPdf.js';
 // —— 手工质感:可编辑、可复用的程序化纹理(拓质/扎染/手绘/拓扑)——
@@ -36,7 +36,7 @@ import { computeStats } from '../data/stats.js';
 import { reportFor } from '../data/digest.js';
 import { renderRecord } from '../poster/renderRecord.js';
 import { renderMonth } from '../poster/renderMonth.js';
-import { renderStrip, renderStatCard } from '../embed/index.js';
+import { renderStrip, renderStatCard, renderGroupBars } from '../embed/index.js';
 
 export const VARIANTS = ['editorial-rubbing', 'tuogu-ink']; // B 暖·拓质(默认) / A 全拓·墨
 
@@ -67,6 +67,8 @@ export function createRecord(activities = [], opts = {}) {
     stripSVG: (o = {}) => renderStrip(model, { variant, texture: tex, ...o }),
     // o 里可给 from/to(只算这段, 卡片右上角会标出区间)与 groupBy
     statCardSVG: (o = {}) => renderStatCard(computeStats(acts, { year, from: o.from, to: o.to }), { variant, texture: tex, ...o }),
+    // 「谁做了多少」横条(给 groupBy 就按人/项目分, 不给就退回按分类)
+    groupBarsSVG: (o = {}) => renderGroupBars(computeStats(acts, { year, from: o.from, to: o.to, groupBy: o.groupBy }), { variant, texture: tex, ...o }),
     // 秘书交差:一段能直接粘贴进对话的文字(给了 from/to 就自动跟紧邻的上一期比)
     report: (o = {}) => reportFor(acts, { year, ...o }),
   };
