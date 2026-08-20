@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SUITES = [
   ['质感模块', 'test-texture.mjs'],
   ['统计层', 'test-stats.mjs'],
+  ['简报层', 'test-digest.mjs'],
   ['可嵌入小件', 'test-embed.mjs'],
   ['类型开放', 'test-open-types.mjs'],
   ['一致性/不丢数据', 'test-consistency.mjs'],

@@ -19,6 +19,8 @@ export { ACTIVITY_TYPES, PALETTES, SEAL, MAX_LEVEL, sampleActivities } from '../
 export { toDailySeries, toRecordModel, aggregateByDay } from '../data/activity.js';
 // —— 统计:活动 → 派生统计(总量/活跃天/连续天/分类分布/按月/最忙/可选按人分组)——
 export { computeStats, monthStats, summarize, monthRange, daysBack } from '../data/stats.js';
+// —— 简报:统计 → 能直接粘贴进对话的纯文本(秘书交差用)——
+export { digest, compare, highlights, previousRange, reportFor } from '../data/digest.js';
 // —— 渲染:整年长条 / 单月详情(印刷大件)——
 export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
@@ -31,6 +33,7 @@ export { texture, resolveTexture, TEXTURE_PRESETS, TEXTURE_DEFAULTS, isTexturePr
 
 import { toRecordModel } from '../data/activity.js';
 import { computeStats } from '../data/stats.js';
+import { reportFor } from '../data/digest.js';
 import { renderRecord } from '../poster/renderRecord.js';
 import { renderMonth } from '../poster/renderMonth.js';
 import { renderStrip, renderStatCard } from '../embed/index.js';
@@ -64,5 +67,7 @@ export function createRecord(activities = [], opts = {}) {
     stripSVG: (o = {}) => renderStrip(model, { variant, texture: tex, ...o }),
     // o 里可给 from/to(只算这段, 卡片右上角会标出区间)与 groupBy
     statCardSVG: (o = {}) => renderStatCard(computeStats(acts, { year, from: o.from, to: o.to }), { variant, texture: tex, ...o }),
+    // 秘书交差:一段能直接粘贴进对话的文字(给了 from/to 就自动跟紧邻的上一期比)
+    report: (o = {}) => reportFor(acts, { year, ...o }),
   };
 }
