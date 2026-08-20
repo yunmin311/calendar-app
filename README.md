@@ -11,10 +11,11 @@
 一个**纯 render+export 组件**:
 
 ```
-活动数组  ──►  统计（总量/连续天/分类分布/按月/可按人分组）
+活动数组  ──►  统计（总量/连续天/分类分布/按月/任意区间/可按人分组）
+          ├─►  简报文字（可粘贴进对话的周报月报，含与上一期的涨跌）
           ├─►  月历留痕 SVG（整年长条 / 单月详情）
           ├─►  可嵌入小件 SVG（活动带 / 统计卡，同页可放无限个）
-          └─►  印刷级 PDF（A1 + 出血 + 裁切标 + CMYK + 子集嵌字 + 拓质位图）
+          └─►  印刷级 PDF（整年 A1 / 单月卡，出血 + 裁切标 + CMYK + 子集嵌字 + 拓质位图）
 ```
 
 - **不自建活动存储、无副作用**;数据由调用方喂入。
@@ -45,6 +46,11 @@ rec.stats({ groupBy: 'actor' });   // 按活动上的任意字段分组（如按
 rec.stats(monthRange(2026, 2));    // 只算三月
 rec.stats(daysBack('2026-03-20', 7));          // 只算最近七天（基准日由你给，组件不看时钟）
 rec.statCardSVG(daysBack('2026-03-20', 7));    // 周报卡：右上角自动标出区间
+
+// 简报：直接粘贴进对话的一段文字（给了区间就自动跟上一期比）
+rec.report(daysBack('2026-03-20', 7));                       // 纯文本周报
+rec.report({ ...monthRange(2026, 2), groupBy: 'actor',
+             groupLabel: '成员', format: 'markdown' });        // 月报 + 按人分组
 
 await exportRecordPDF(activities, 2026, 'editorial-rubbing');  // 浏览器:下载印刷 PDF
 ```
@@ -100,11 +106,16 @@ npm run dev            # 起 Vite 开发服(app 是组件的预览台)
 自测脚本(无需浏览器,node 直跑):
 
 ```bash
-node scripts/test-texture.mjs           # 手工质感模块(59 项)
-node scripts/test-stats.mjs             # 统计层(40 项,手算样本逐个对数)
-node scripts/test-embed.mjs             # 可嵌入小件(39 项,含同页多实例 id 不撞)
-node scripts/test-open-types.mjs        # 类型开放(30 项,图与统计数字不许打架)
-node scripts/test-record-pdf.mjs        # B/A 印刷 PDF 矢量校验样张(847×600mm)
+npm test                                # 一把跑下面全部(scripts/test-all.mjs)
+
+node scripts/test-texture.mjs           # 手工质感模块
+node scripts/test-stats.mjs             # 统计层(手算样本逐个对数 + 区间)
+node scripts/test-digest.mjs            # 简报层(涨跌/值得注意/不静默少算)
+node scripts/test-embed.mjs             # 可嵌入小件(含同页多实例 id 不撞)
+node scripts/test-open-types.mjs        # 类型开放(图与统计数字不许打架)
+node scripts/test-consistency.mjs       # 一致性/不丢数据/图例不说谎
+node scripts/test-record-pdf.mjs        # 印刷 PDF 样张(整年 847×600 / 单月 216×286)
+node scripts/test-print-geometry.mjs    # 印刷坐标 = 屏幕几何(解 PDF 内容流逐格比对)
 
 node scripts/build-texture-studio.mjs       # 质感调参台 HTML(给设计师拖滑块用)
 node scripts/build-texture-gallery.mjs      # 四质感样品册 HTML
