@@ -37,7 +37,7 @@ export const clipText = (s, n = NOTE_CHARS) => { s = String(s ?? ''); return s.l
 /** 当月里程碑: { 日 → 标签 }。年份取自 model。 */
 export function milestonesByDay(model, monthIndex) {
   const out = {};
-  const year = model?.year;
+  const year = Number(model?.year);   // 年份可能是字符串, 硬比会把整月的印全滤掉
   for (const ms of model?.milestones || []) {
     const [yy, mo, d] = String(ms.date).split('-').map(Number);
     if (yy === year && mo - 1 === monthIndex) out[d] = ms.label || '';
@@ -71,7 +71,7 @@ export function monthTotals(model, monthIndex) {
  * @returns {Array<{color?:string, ink?:boolean, name:string}>}
  */
 export function legendItems(model, c, { month = null, compact = false } = {}) {
-  const year = model?.year, days = model?.days || {};
+  const year = Number(model?.year), days = model?.days || {};
   const inScope = (date) => {
     if (month == null) return true;
     const [yy, mo] = String(date).split('-').map(Number);

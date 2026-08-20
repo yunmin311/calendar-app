@@ -112,8 +112,8 @@ export function renderRecord(model, opts = {}) {
 
   // 里程碑 = 朱砂印
   for (const ms of milestones) {
-    const [y, mo, d] = ms.date.split('-').map(Number);
-    if (y !== year) continue;
+    const [y, mo, d] = String(ms.date).split('-').map(Number);
+    if (y !== Number(year)) continue;   // 年份可能是字符串, 硬比会把所有印全滤掉(实测过)
     const cell = cellRect(g, mo - 1, d);
     p.push(R(cell.x + 6, cell.y + 0.6, Math.min((ms.label || '').length * 3.0 + 1.5, g.cellW * 3), 4.4, c.paper, 'opacity="0.72"'));
     p.push(seal(cell.x + 1, cell.y + 1, ms.label, c));

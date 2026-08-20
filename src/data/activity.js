@@ -193,7 +193,10 @@ export function aggregateByDay(activities) {
 
 // 活动数组 → 每日契约序列 [{ date, count, level, dominant, note, milestone }]
 // 这是「进 = CO 活动数据数组 → 出 = 每天强度」建模的落点(契约形状 = react-activity-calendar)
-export function toDailySeries(activities, year = 2026) {
+export function toDailySeries(activities, yearIn = 2026) {
+  // 年份一律规整成数字:传字符串 '2026' 时, 下游那些 `y !== year` 的比较会全部落空 ——
+  // 实测后果是整年图上**所有朱砂印消失**, 统计却照样说有 4 个(又一处图与数字打架)。
+  const year = Number(yearIn) || 2026;
   // 先分拣再聚合:别年的数据既不该落格, 也**不该参与 maxWeight**——否则去年一条超大投入
   // 会把今年的墨深整体压平(实测 1,2,3 会塌成 1,1,1), 是一种看不见的数据损坏。
   const part = partitionActivities(activities, year);
@@ -213,8 +216,8 @@ export function toDailySeries(activities, year = 2026) {
 
 // 活动 → 渲染视图模型(供 renderRecord / exportPdf 共用)
 // level 是唯一的强度真源: level→墨深(intensity), level 0 不落格(留白), 里程碑=朱砂
-export function toRecordModel(activities, year = 2026, variant = 'editorial-rubbing') {
-  const { maxWeight, series, kept: acts, dropped } = toDailySeries(activities, year);
+export function toRecordModel(activities, yearIn = 2026, variant = 'editorial-rubbing') {
+  const { maxWeight, series, kept: acts, dropped, year } = toDailySeries(activities, yearIn);
   const pal = PALETTES[variant] || PALETTES['editorial-rubbing'];
   const mono = variant === 'tuogu-ink';
   const categories = ACTIVITY_TYPES.map((t) => ({ id: t.id, name: t.name, color: pal[t.id], render: 'fill' }));

@@ -68,13 +68,17 @@ export function compare(cur, prev) {
 }
 
 const sign = (n) => (n > 0 ? `+${n}` : String(n));
+// Markdown 模式下,分类名/人名里的 * _ ` [ ] 会被当成格式符 —— 一个叫「**加粗**」的分类
+// 会在简报里真的变粗,读者看到的就不是它本来的名字了。转义掉,纯文本模式原样输出。
+const mdEsc = (s, md) => (md ? String(s).replace(/([\\`*_{}\[\]()#+\-.!|])/g, '\\$1') : String(s));
 const pctText = (d) => (d.pct == null ? (d.cur ? '(上期为 0)' : '') : `(${sign(d.pct)}%)`);
 
 /**
  * 「值得注意的」—— 秘书的价值在于指出, 不在于罗列。
  * 只挑真的值得说的:断更、猛涨猛跌、某类骤变、里程碑、留白最长的一段。
  */
-export function highlights(stats, cmp) {
+export function highlights(stats, cmp, { md = false } = {}) {
+  const E = (s) => mdEsc(s, md);
   const out = [];
   if (!stats || !stats.days) return out;
   const r = stats.range || {};
@@ -87,18 +91,18 @@ export function highlights(stats, cmp) {
     const w = cmp.weight;
     if (w.pct != null && Math.abs(w.pct) >= 30) out.push(`总投入比上期${w.up ? '涨' : '掉'}了 ${Math.abs(w.pct)}%。`);
     const big = cmp.byType[0];
-    if (big && Math.abs(big.diff) >= 3) out.push(`变化最大的是「${big.name}」:${sign(big.diff)}${pctText(big)}。`);
-    const gone = cmp.byType.filter((t) => t.cur === 0 && t.prev > 0).map((t) => t.name);
+    if (big && Math.abs(big.diff) >= 3) out.push(`变化最大的是「${E(big.name)}」:${sign(big.diff)}${pctText(big)}。`);
+    const gone = cmp.byType.filter((t) => t.cur === 0 && t.prev > 0).map((t) => E(t.name));
     if (gone.length) out.push(`上期有、这期没动的:${gone.join('、')}。`);
-    const fresh = cmp.byType.filter((t) => t.prev === 0 && t.cur > 0).map((t) => t.name);
+    const fresh = cmp.byType.filter((t) => t.prev === 0 && t.cur > 0).map((t) => E(t.name));
     if (fresh.length) out.push(`这期新开的:${fresh.join('、')}。`);
   }
 
   const ms = stats.milestones || [];
-  if (ms.length) out.push(`里程碑 ${ms.length} 个:${ms.map((m) => `${m.date.slice(5)}${m.label ? ' ' + m.label : ''}`).join('、')}。`);
+  if (ms.length) out.push(`里程碑 ${ms.length} 个:${ms.map((m) => `${String(m.date).slice(5)}${m.label ? ' ' + E(m.label) : ''}`).join('、')}。`);
   else if (r.days && r.days <= 62) out.push('这段没有里程碑。');
 
-  if (stats.busiest) out.push(`最忙是 ${stats.busiest.date}(投入 ${stats.busiest.count}${stats.busiest.note ? ',' + stats.busiest.note : ''})。`);
+  if (stats.busiest) out.push(`最忙是 ${stats.busiest.date}(投入 ${stats.busiest.count}${stats.busiest.note ? ',' + E(stats.busiest.note) : ''})。`);
   return out;
 }
 
@@ -144,17 +148,17 @@ export function digest(stats, opts = {}) {
   if (types.length) {
     bullet('分类:' + types.map((t) => {
       const d = cmp && cmp.has ? cmp.byType.find((x) => x.id === t.id) : null;
-      return `${t.name} ${Math.round(t.share * 100)}%(${t.weight}${d && d.diff ? ' ' + sign(d.diff) : ''})`;
+      return `${mdEsc(t.name, md)} ${Math.round(t.share * 100)}%(${t.weight}${d && d.diff ? ' ' + sign(d.diff) : ''})`;
     }).join(' · '));
   }
 
   if (stats.groups && stats.groups.length) {
-    const label = opts.groupLabel || stats.groupBy || '分组';
+    const label = mdEsc(opts.groupLabel || stats.groupBy || '分组', md);
     bullet(`${label}:` + stats.groups.slice(0, maxGroups)
-      .map((g) => `${g.key} ${g.weight}(${g.days} 天${g.milestones ? `,里程碑 ${g.milestones}` : ''})`).join(' · '));
+      .map((g) => `${mdEsc(g.key, md)} ${g.weight}(${g.days} 天${g.milestones ? `,里程碑 ${g.milestones}` : ''})`).join(' · '));
   }
 
-  const hl = highlights(stats, cmp);
+  const hl = highlights(stats, cmp, { md });
   if (hl.length) {
     L.push('');
     L.push(md ? '**值得注意**' : '值得注意:');

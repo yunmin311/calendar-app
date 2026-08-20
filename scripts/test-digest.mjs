@@ -111,7 +111,21 @@ console.log('\n[7] reportFor: 一步到位, 且不拿跨年的上一期骗人');
   ok('createRecord 上也有 report()', createRecord(acts, { year: 2026 }).report(daysBack('2026-03-20', 7)).includes('活动简报'));
 }
 
-console.log('\n[8] 空 / 乱输入不崩');
+console.log('\n[8] Markdown 里的名字不许被当成格式符(叫「**加粗**」的分类不该真变粗)');
+{
+  const s = computeStats([A('2026-03-01', '**加粗**', 5), A('2026-03-02', '_下划_', 3)], { year: 2026 });
+  const md = digest(s, { format: 'markdown' });
+  const txt = digest(s);
+  ok('markdown 版把 * _ 转义了', md.includes('\\*\\*加粗\\*\\*') && md.includes('\\_下划\\_'), md.split('\n').find((l) => l.includes('分类')));
+  ok('纯文本版原样输出(不该乱加反斜杠)', txt.includes('**加粗**') && !txt.includes('\\*'), txt.split('\n').find((l) => l.includes('分类')));
+  const g = computeStats([{ id: '1', date: '2026-03-01', type: 'design', title: 't', weight: 2, who: '[张三](x)' }], { year: 2026, groupBy: 'who' });
+  ok('分组名也转义', digest(g, { format: 'markdown' }).includes('\\[张三\\]'), digest(g, { format: 'markdown' }));
+  const ms = computeStats([A('2026-03-01', 'publish', 3, { milestone: true, title: '*上线*' })], { year: 2026, from: '2026-03-01', to: '2026-03-07' });
+  ok('里程碑标签也转义', digest(ms, { format: 'markdown' }).includes('\\*上线\\*'));
+  ok('转义不影响数字', md.includes('总投入 **8**'), md);
+}
+
+console.log('\n[9] 空 / 乱输入不崩');
 for (const [name, s] of [['null', null], ['空对象', {}], ['只有 year', { year: 2026 }]]) {
   let threw = false, out = '';
   try { out = digest(s); } catch { threw = true; }

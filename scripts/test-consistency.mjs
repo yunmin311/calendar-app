@@ -123,6 +123,23 @@ console.log('\n[8] 分拣入口是唯一的(统计与渲染不可能各走各的
   ok('aggregateByDay 单独调用也跳非法日期', Object.keys(aggregateByDay(acts)).length === 2); // 2026 与 2025 各一天, 非法的被跳过
 }
 
+console.log('\n[8b] 年份传字符串不许丢东西(实测过: 整年图上所有朱砂印会全部消失)');
+{
+  const acts = [A('2026-01-05', 'design', 2), A('2026-03-03', 'publish', 3, { milestone: true, title: '上线' })];
+  const mNum = toRecordModel(acts, 2026), mStr = toRecordModel(acts, '2026');
+  ok('model.year 规整成数字', typeof mStr.year === 'number' && mStr.year === 2026, typeof mStr.year);
+  ok('里程碑没丢', mStr.milestones.length === 1 && mNum.milestones.length === 1);
+  ok('整年图逐字节一致', renderRecord(mNum, {}) === renderRecord(mStr, {}));
+  ok('单月图逐字节一致', renderMonth(mNum, 2, {}) === renderMonth(mStr, 2, {}));
+  ok('活动带逐字节一致', renderStrip(mNum, {}) === renderStrip(mStr, {}));
+  ok('图上真有朱砂印(不是两边都没有)', renderRecord(mStr, {}).split('#9e3b32').length > 2);
+  ok('统计侧也认字符串年', computeStats(acts, { year: '2026' }).milestones.length === 1);
+  // 手搓 model(年份是字符串)也不该整片丢印 —— 下游比较都加了 Number()
+  const hand = { ...mNum, year: '2026' };
+  ok('手搓字符串年的 model 仍画得出印', renderRecord(hand, {}).split('#9e3b32').length > 2);
+  ok('手搓字符串年的月卡仍画得出印', renderMonth(hand, 2, {}).split('#9e3b32').length > 2);
+}
+
 console.log('\n[9] 图例不许说谎:只列图上真出现过的分类, 出现了的必须列');
 {
   const c = RECORD_VARIANTS['editorial-rubbing'];

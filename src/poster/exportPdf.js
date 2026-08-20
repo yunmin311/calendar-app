@@ -186,8 +186,8 @@ export async function buildRecordPdfBytes(model, opts = {}) {
 
   // ⑤ 里程碑 = 朱砂印(红方块 + 内白框 + 楷体标签)
   for (const ms of milestones) {
-    const [yy, mo, d] = ms.date.split('-').map(Number);
-    if (yy !== year) continue;
+    const [yy, mo, d] = String(ms.date).split('-').map(Number);
+    if (yy !== Number(year)) continue;   // 同 renderRecord: 年份可能是字符串
     const cell = cellRect(g, mo - 1, d);
     const s = 4.2;
     if (cjk && ms.label) rect(cell.x + 6, cell.y + 0.6, Math.min(String(ms.label).length * 3.0 + 1.5, g.cellW * 3), 4.4, paperC, 0.72);
