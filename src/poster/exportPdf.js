@@ -12,8 +12,18 @@ import { RECORD_VARIANTS } from './renderRecord.js';
 import { MONTH_PAGE, monthGeometry, weeksInMonth, clampMonth, monthNumX } from './renderMonth.js';
 import { toRecordModel } from '../data/activity.js';
 import { resolveTexture } from '../texture/index.js';
+import { inkOpacity, legendItems, monthTotals, milestonesByDay, clipText } from './paint.js';
 
 const MM = 2.834645669; // 1mm = 2.834645669pt
+
+// hex → CMYK。整年长条与单月卡共用一份(此前两处各写一遍, 正是"同一条规则两份实现"那类根因)
+const makeHexToCmyk = (cmyk) => (hex) => {
+  const h = String(hex).replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+  const k = 1 - Math.max(r, g, b);
+  if (k >= 1) return cmyk(0, 0, 0, 1);
+  return cmyk((1 - r - k) / (1 - k), (1 - g - k) / (1 - k), (1 - b - k) / (1 - k), k);
+};
 
 // 四角裁切标(画在出血区): 整年长条与单月卡共用
 function drawCropMarks(page, g, color) {
@@ -102,13 +112,7 @@ export async function buildRecordPdfBytes(model, opts = {}) {
   const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
   const mono = !!c.mono;
 
-  const hexToCmyk = (hex) => {
-    const h = hex.replace('#', '');
-    const r = parseInt(h.slice(0, 2), 16) / 255, g2 = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
-    const k = 1 - Math.max(r, g2, b);
-    if (k >= 1) return cmyk(0, 0, 0, 1);
-    return cmyk((1 - r - k) / (1 - k), (1 - g2 - k) / (1 - k), (1 - b - k) / (1 - k), k);
-  };
+  const hexToCmyk = makeHexToCmyk(cmyk);
 
   const g = geometry();
   const { year, categories = [], days = {}, milestones = [] } = model;
@@ -168,10 +172,10 @@ export async function buildRecordPdfBytes(model, opts = {}) {
       if (d > dim) continue;
       const rec = days[iso(year, m, d)];
       if (mono) {
-        if (rec) rect(cell.x, cell.y, cell.w, cell.h, inkC, 0.2 + 0.78 * (rec.intensity || 0.3));
+        if (rec) rect(cell.x, cell.y, cell.w, cell.h, inkC, inkOpacity(rec.intensity, { mono: true, carrier: 'year' }));
       } else {
         if (c.weekendTint && isWeekend(year, m, d)) rect(cell.x, cell.y, cell.w, cell.h, paper2C, 0.85);
-        if (rec) { const cat = catById[rec.categoryId]; if (cat) rect(cell.x, cell.y, cell.w, cell.h, hexToCmyk(cat.color), 0.45 + 0.55 * (rec.intensity || 0.4)); }
+        if (rec) { const cat = catById[rec.categoryId]; if (cat) rect(cell.x, cell.y, cell.w, cell.h, hexToCmyk(cat.color), inkOpacity(rec.intensity, { carrier: 'year' })); }
         if (dow(year, m, d) === 0) rect(cell.x, cell.y + cell.h * 0.22, 0.5, cell.h * 0.56, sealC);
       }
     }
@@ -197,8 +201,7 @@ export async function buildRecordPdfBytes(model, opts = {}) {
   const fb = g.footerY + g.FOOTER_H * 0.5;
   line(g.contentX, g.footerY, g.gridRight, g.footerY, lineC, 0.3);
   let lx = g.contentX;
-  const legend = [{ color: c.seal, name: '出版 / 里程碑' },
-    ...(mono ? [{ ink: true, name: '墨深 = 当日投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  const legend = legendItems(model, c);   // 与屏幕同一个函数
   const legendLimit = g.gridRight - 92; // 右侧留给印刷标注; 分类多时图例排到这儿为止
   for (const it of legend) {
     if (lx + 4 + it.name.length * 2.8 > legendLimit) break;
@@ -242,13 +245,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
   const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
   const mono = !!c.mono;
 
-  const hexToCmyk = (hex) => {
-    const h = String(hex).replace('#', '');
-    const r = parseInt(h.slice(0, 2), 16) / 255, g2 = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
-    const k = 1 - Math.max(r, g2, b);
-    if (k >= 1) return cmyk(0, 0, 0, 1);
-    return cmyk((1 - r - k) / (1 - k), (1 - g2 - k) / (1 - k), (1 - b - k) / (1 - k), k);
-  };
+  const hexToCmyk = makeHexToCmyk(cmyk);
 
   const { year, categories = [], days = {}, milestones = [] } = model;
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
@@ -279,7 +276,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
     const x = align === 'end' ? X(xmm) - w : align === 'middle' ? X(xmm) - w / 2 : X(xmm);
     page.drawText(String(str), { x, y: Y(ymm), size: sizeMM * MM, font: f, color, opacity });
   };
-  const clip = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+  const clip = clipText;   // 与屏幕同一个截断口径
 
   const inkC = hexToCmyk(c.ink), softC = hexToCmyk(c.inkSoft), lineC = hexToCmyk(c.line),
         sealC = hexToCmyk(c.seal), paperC = hexToCmyk(c.paper);
@@ -292,9 +289,8 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
     page.drawRectangle({ x: 0, y: 0, width: mediaWmm * MM, height: mediaHmm * MM, color: paperC });
   }
 
-  // ② 报头: 月名 + 月号 + 年 + 当月统计(与屏幕同口径, 都从 model.days 数)
-  let activeDays = 0, sumW = 0;
-  for (let d = 1; d <= dim; d++) { const rec = days[iso(year, m, d)]; if (rec) { activeDays++; sumW += rec.count || 0; } }
+  // ② 报头: 月名 + 月号 + 年 + 当月统计(与屏幕**同一个函数**, 不再各数一遍)
+  const { activeDays, sumWeight: sumW } = monthTotals(model, m);
   text(g.M.l, g.M.t + 14, MONTHS_ZH[m], 15, inkC, kai);
   text(monthNumX(m), g.M.t + 13, MONTHS_NUM[m], 4.4, softC, latin);   // 偏移按月名字数算, 与屏幕同函数
   text(g.gridRight, g.M.t + 6, String(year), 8, inkC, mono ? kai : latin, 'end');
@@ -308,8 +304,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
   }
 
   // ④ 日格: 墨底(强度)+ 格线 + 日号 + 朱砂里程碑 + 活动标题
-  const msByDay = {};
-  for (const ms of milestones) { const [yy, mo, d] = String(ms.date).split('-').map(Number); if (yy === year && mo - 1 === m) msByDay[d] = ms.label; }
+  const msByDay = milestonesByDay(model, m);   // 与屏幕同一个函数
   for (let d = 1; d <= dim; d++) {
     const idx = firstDow + d - 1;
     const col = idx % 7, row = Math.floor(idx / 7);
@@ -317,8 +312,8 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
     const rec = days[iso(year, m, d)];
     if (rec) {   // 「出版」也照常落墨(见 renderRecord 同处注释)
       const inten = rec.intensity || 0.4;
-      if (mono) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, inkC, 0.14 + 0.7 * inten);
-      else { const cat = catById[rec.categoryId]; if (cat) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, hexToCmyk(cat.color), 0.4 + 0.55 * inten); }
+      if (mono) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, inkC, inkOpacity(inten, { mono: true, carrier: 'month' }));
+      else { const cat = catById[rec.categoryId]; if (cat) rect(x + 0.6, y + 0.6, g.colW - 1.2, g.rowH - 1.2, hexToCmyk(cat.color), inkOpacity(inten, { carrier: 'month' })); }
     }
     stroke(x, y, g.colW, g.rowH, lineC, 0.25);
     text(x + 2, y + 5, String(d), 4, col === 0 ? sealC : inkC, latin, 'left', rec ? 1 : 0.4);
@@ -335,8 +330,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
   // ⑤ 页脚图例(分类多时截断, 与屏幕同规则)
   line(g.M.l, g.footRuleY, g.gridRight, g.footRuleY, lineC, 0.3);
   let lx = g.M.l;
-  const legend = [{ color: c.seal, name: '里程碑' },
-    ...(mono ? [{ ink: true, name: '墨深=投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  const legend = legendItems(model, c, { month: m, compact: true });   // 与屏幕同一个函数
   for (const it of legend) {
     if (lx + 4.2 + it.name.length * 3 > g.gridRight) break;
     if (it.ink) rect(lx, g.footBaseline - 2.4, 3, 3, inkC, 0.8);

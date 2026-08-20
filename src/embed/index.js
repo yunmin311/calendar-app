@@ -17,6 +17,7 @@ import { PALETTES } from '../data/activity.js';
 import { summarize } from '../data/stats.js';
 import { RECORD_VARIANTS } from '../poster/renderRecord.js';
 import { clampMonth } from '../poster/renderMonth.js';
+import { inkOpacity } from '../poster/paint.js';
 import { resolveTexture } from '../texture/index.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
@@ -117,7 +118,7 @@ export function renderStrip(model, opts = {}) {
     if (rec) {   // 「出版」也照常落墨(见 renderRecord 同处注释)
       const inten = rec.intensity || 0.4;
       const fill = mono ? c.ink : (catById[rec.categoryId]?.color || c.ink);
-      p.push(R(x, y, cell, cell, fill, `opacity="${r(mono ? 0.18 + 0.76 * inten : 0.42 + 0.58 * inten)}"`));
+      p.push(R(x, y, cell, cell, fill, `opacity="${inkOpacity(inten, { mono, carrier: 'strip' })}"`));
     }
     if (msSet.has(key)) {
       // 里程碑: 朱砂小印(留个白边, 一眼跳出来)

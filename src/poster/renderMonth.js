@@ -5,6 +5,7 @@
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, iso } from '../data/model.js';
 import { RECORD_VARIANTS } from './renderRecord.js';
 import { resolveTexture } from '../texture/index.js';
+import { inkOpacity, legendItems, monthTotals, milestonesByDay, clipText } from './paint.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
 const SER = 'Georgia,"Times New Roman","Songti SC",serif';
@@ -20,7 +21,7 @@ const T = (x, y, str, o = {}) => {
 };
 const R = (x, y, w, h, fill, extra = '') => `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" fill="${fill}" ${extra}/>`;
 const L = (x1, y1, x2, y2, stroke, w) => `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${stroke}" stroke-width="${w}"/>`;
-const clip = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+const clip = clipText;   // 截断长度也走 paint.js 的口径, 印刷那边用的是同一个
 // 月份索引规整: 非有限数(NaN/undefined)落回一月, 小数取整, 越界夹住。
 // 不这么做的话 NaN 会一路穿到 daysInMonth 变成"画出一张空月卡"—— 静默出错比报错更坏。
 export const clampMonth = (m) => { const n = Number(m); return Number.isFinite(n) ? Math.max(0, Math.min(11, Math.trunc(n))) : 0; };
@@ -79,12 +80,9 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   const g = monthGeometry(weeks);
   const { gridTop, gridLeft, gridRight, colW, rowH } = g;
 
-  // 当月里程碑(date→label)
-  const msByDay = {};
-  for (const ms of milestones) { const [yy, mo, d] = ms.date.split('-').map(Number); if (yy === year && mo - 1 === m) msByDay[d] = ms.label; }
-  // 当月统计
-  let activeDays = 0, sumW = 0;
-  for (let d = 1; d <= dim; d++) { const rec = days[iso(year, m, d)]; if (rec) { activeDays++; sumW += rec.count || 0; } }
+  // 当月里程碑与合计:走 paint.js 的共用口径, 印刷那边用的是同一个函数(不再各数一遍)
+  const msByDay = milestonesByDay(model, m);
+  const { activeDays, sumWeight } = monthTotals(model, m);
 
   const p = [];
   // 手工质感: 同一套 texture 模块; 卡片视口比 A1 小 → 只按载体换算噪声频率(见 resolveTexture)
@@ -101,7 +99,7 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   p.push(T(M.l, M.t + 14, MONTHS_ZH[m], { size: 15, font: KAI, fill: c.ink, spacing: 2 }));
   p.push(T(monthNumX(m), M.t + 13, MONTHS_NUM[m], { size: 4.4, font: SER, fill: c.inkSoft, spacing: 2 }));
   p.push(T(gridRight, M.t + 6, String(year), { size: 8, font: mono ? KAI : SER, fill: c.ink, anchor: 'end' }));
-  p.push(T(gridRight, M.t + 12.5, `${activeDays} 天有痕 · 投入 ${sumW}`, { size: 3, font: KAI, fill: c.inkSoft, anchor: 'end' }));
+  p.push(T(gridRight, M.t + 12.5, `${activeDays} 天有痕 · 投入 ${sumWeight}`, { size: 3, font: KAI, fill: c.inkSoft, anchor: 'end' }));
   p.push(L(M.l, M.t + HEAD_H - 6, gridRight, M.t + HEAD_H - 6, c.ink, 0.5));
 
   // 星期表头
@@ -121,10 +119,10 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
     // 墨底(强度)
     if (rec) {   // 「出版」也照常落墨(见 renderRecord 同处注释)
       const inten = rec.intensity || 0.4;
-      if (mono) cells.push(R(x + 0.6, y + 0.6, colW - 1.2, rowH - 1.2, c.ink, `opacity="${r(0.14 + 0.7 * inten)}"`));
+      if (mono) cells.push(R(x + 0.6, y + 0.6, colW - 1.2, rowH - 1.2, c.ink, `opacity="${inkOpacity(inten, { mono: true, carrier: 'month' })}"`));
       else {
         const cat = catById[rec.categoryId];
-        if (cat) cells.push(R(x + 0.6, y + 0.6, colW - 1.2, rowH - 1.2, cat.color, `opacity="${r(0.4 + 0.55 * inten)}"`));
+        if (cat) cells.push(R(x + 0.6, y + 0.6, colW - 1.2, rowH - 1.2, cat.color, `opacity="${inkOpacity(inten, { carrier: 'month' })}"`));
       }
     }
     // 格线
@@ -143,8 +141,7 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   const fy = PAGE.h - M.b - FOOT_H * 0.4;
   p.push(L(M.l, PAGE.h - M.b - FOOT_H, gridRight, PAGE.h - M.b - FOOT_H, c.line, 0.3));
   let lx = M.l;
-  const legend = [{ color: c.seal, name: '里程碑' },
-    ...(mono ? [{ ink: true, name: '墨深=投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  const legend = legendItems(model, c, { month: m, compact: true });   // 只列当月出现过的分类
   for (const it of legend) {
     if (lx + 4.2 + it.name.length * 3 > gridRight) { p.push(T(lx, fy, '…', { size: 3, fill: c.inkSoft })); break; }
     if (it.ink) p.push(R(lx, fy - 2.4, 3, 3, c.ink, 'opacity="0.8"'));

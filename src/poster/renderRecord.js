@@ -5,6 +5,7 @@
 import { geometry, cellRect, dayCenterX } from './layout.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
 import { resolveTexture } from '../texture/index.js';
+import { inkOpacity, legendItems } from './paint.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
 const SER = 'Georgia,"Times New Roman","Songti SC",serif';
@@ -93,10 +94,10 @@ export function renderRecord(model, opts = {}) {
       // 注: 「出版」这一类以前被排除在墨格外(留给朱砂印), 结果是没打里程碑标的出版活动
       // 在图上完全消失、统计里却算着 —— 静默丢数据。现在照常落墨, 朱砂印只认 milestone 标。
       if (c.mono) {
-        if (rec) cells.push(R(cell.x, cell.y, cell.w, cell.h, c.ink, `opacity="${r(0.2 + 0.78 * (rec.intensity || 0.3))}"`));
+        if (rec) cells.push(R(cell.x, cell.y, cell.w, cell.h, c.ink, `opacity="${inkOpacity(rec.intensity, { mono: true, carrier: 'year' })}"`));
       } else {
         if (c.weekendTint && isWeekend(year, m, d)) cells.push(R(cell.x, cell.y, cell.w, cell.h, c.paper2));
-        if (rec) { const cat = catById[rec.categoryId]; if (cat) cells.push(R(cell.x, cell.y, cell.w, cell.h, cat.color, `opacity="${r(0.45 + 0.55 * (rec.intensity || 0.4))}"`)); }
+        if (rec) { const cat = catById[rec.categoryId]; if (cat) cells.push(R(cell.x, cell.y, cell.w, cell.h, cat.color, `opacity="${inkOpacity(rec.intensity, { carrier: 'year' })}"`)); }
         if (dow(year, m, d) === 0) cells.push(R(cell.x, cell.y + cell.h * 0.22, 0.5, cell.h * 0.56, c.seal));
       }
     }
@@ -122,7 +123,7 @@ export function renderRecord(model, opts = {}) {
   const fb = g.footerY + g.FOOTER_H * 0.5;
   p.push(L(g.contentX, g.footerY, g.gridRight, g.footerY, c.line, 0.3));
   let lx = g.contentX;
-  const legend = [{ color: c.seal, name: '出版 / 里程碑' }, ...(c.mono ? [{ ink: true, name: '墨深 = 当日投入' }] : categories.filter((x) => x.id !== 'publish').map((x) => ({ color: x.color, name: x.name })))];
+  const legend = legendItems(model, c);   // 只列图上真出现过的分类 + 里程碑(见 paint.js)
   const legendLimit = g.gridRight - 92; // 右侧留给印刷标注; 分类多时图例排到这儿为止
   for (const it of legend) {
     if (lx + 4 + it.name.length * 2.8 > legendLimit) { p.push(T(lx, fb, '…', { size: 2.8, fill: c.inkSoft })); break; }

@@ -6,6 +6,8 @@ import { computeStats } from '../src/data/stats.js';
 import { renderRecord } from '../src/poster/renderRecord.js';
 import { renderMonth } from '../src/poster/renderMonth.js';
 import { renderStrip } from '../src/embed/index.js';
+import { RECORD_VARIANTS } from '../src/poster/renderRecord.js';
+import { legendItems, inkOpacity } from '../src/poster/paint.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}  ${got !== undefined ? JSON.stringify(got) : ''}`); } };
@@ -119,6 +121,60 @@ console.log('\n[8] 分拣入口是唯一的(统计与渲染不可能各走各的
   ok('toDailySeries 用的就是它', ds.kept.length === 1 && ds.dropped.otherYear === 1);
   ok('computeStats 报同一份 dropped', JSON.stringify(computeStats(acts, { year: 2026 }).dropped) === JSON.stringify(ds.dropped));
   ok('aggregateByDay 单独调用也跳非法日期', Object.keys(aggregateByDay(acts)).length === 2); // 2026 与 2025 各一天, 非法的被跳过
+}
+
+console.log('\n[9] 图例不许说谎:只列图上真出现过的分类, 出现了的必须列');
+{
+  const c = RECORD_VARIANTS['editorial-rubbing'];
+  // 只有两类活动 → 图例不该把五类全摆出来
+  const two = toRecordModel([A('2026-01-05', 'design', 2), A('2026-02-06', 'writing', 1)], 2026);
+  const li = legendItems(two, c);
+  ok('只列出现过的两类', li.length === 2 && li.map((x) => x.name).sort().join() === '写作,设计', li);
+  ok('没有里程碑就不列「里程碑」', !li.some((x) => x.name === '里程碑'));
+
+  // 出版有色块 → 图例必须认账(上轮把出版改成正常落墨, 图例却还在过滤它)
+  const pub = toRecordModel([A('2026-03-03', 'publish', 3)], 2026);
+  const pl = legendItems(pub, c);
+  ok('出版落墨了, 图例就得列「出版」', pl.some((x) => x.name === '出版'), pl);
+  const svg = renderRecord(pub, {});
+  ok('图上有出版色块、图例也有该色', svg.split('#9e3b32').length > 2);
+
+  // 有里程碑 → 列;且与出版分开列
+  const ms = toRecordModel([A('2026-03-03', 'publish', 3, { milestone: true })], 2026);
+  const ml = legendItems(ms, c);
+  ok('有里程碑就列', ml.some((x) => x.name === '里程碑'));
+  ok('里程碑与出版是两条', ml.length === 2 && ml.some((x) => x.name === '出版'), ml);
+
+  // 月卡图例只看当月
+  const yr = toRecordModel([A('2026-01-05', 'design', 2), A('2026-06-06', 'build', 1)], 2026);
+  ok('一月只列设计', legendItems(yr, c, { month: 0 }).map((x) => x.name).join() === '设计', legendItems(yr, c, { month: 0 }));
+  ok('六月只列构建', legendItems(yr, c, { month: 5 }).map((x) => x.name).join() === '构建');
+  ok('空月份图例为空', legendItems(yr, c, { month: 8 }).length === 0);
+  ok('渲染出来的月卡图例条数与之一致', (() => {
+    const m0 = renderMonth(yr, 0, {});
+    return m0.includes('设计') && !m0.includes('构建');
+  })());
+
+  // A 全拓
+  const monoC = RECORD_VARIANTS['tuogu-ink'];
+  const monoModel = toRecordModel([A('2026-01-05', 'design', 2)], 2026, 'tuogu-ink');
+  ok('全拓图例是「墨深」而不是分类色', legendItems(monoModel, monoC).some((x) => x.ink && x.name.includes('墨深')), legendItems(monoModel, monoC));
+  ok('全拓无数据时图例为空', legendItems(toRecordModel([], 2026, 'tuogu-ink'), monoC).length === 0);
+}
+
+console.log('\n[10] 墨深公式只有一份(屏幕与印刷不可能漂)');
+{
+  ok('强度 0 → 底值', inkOpacity(0, { carrier: 'year' }) === 0.45 && inkOpacity(0, { carrier: 'month' }) === 0.4);
+  ok('强度 1 → 满值', inkOpacity(1, { carrier: 'year' }) === 1 && inkOpacity(1, { carrier: 'strip' }) === 1);
+  ok('mono 另一套', inkOpacity(1, { mono: true, carrier: 'year' }) === 0.98);
+  ok('越界被夹住', inkOpacity(5, { carrier: 'year' }) === 1 && inkOpacity(-3, { carrier: 'year' }) === 0.45);
+  ok('非数字不产生 NaN', inkOpacity(undefined, { carrier: 'year' }) === 0.45 && !Number.isNaN(inkOpacity('x', { carrier: 'year' })));
+  ok('未知载体退回整年', inkOpacity(0.5, { carrier: '乱写' }) === inkOpacity(0.5, { carrier: 'year' }));
+  // 屏幕 SVG 里的透明度必须能在 PDF 内容流里找到同样的值(同一函数, 这里做形式核对)
+  const model = toRecordModel([A('2026-01-05', 'design', 2), A('2026-01-06', 'design', 8)], 2026);
+  const svg = renderRecord(model, {});
+  const wanted = Object.values(model.days).map((d) => inkOpacity(d.intensity, { carrier: 'year' }));
+  ok('整年图里出现的正是这几个透明度', wanted.every((v) => svg.includes(`opacity="${v}"`)), wanted);
 }
 
 console.log(`\n结果: ${pass} 过 / ${fail} 挂`);
