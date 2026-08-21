@@ -67,6 +67,16 @@ for (const [m, tag] of [[1, '02-有里程碑'], [7, '08-留白断口与里程碑
   console.log('  WROTE', f, `(${bytes.length} bytes)`);
 }
 
+// 确定性: 同一份数据必须出同一串字节。pdf-lib 默认往文件里盖当前时间戳,
+// 那会让每跑一次自测校样 PDF 就在仓里假变更一次, 也让"同数据同输出"这条承诺当场破功。
+{
+  const m = toRecordModel(acts, 2026, 'editorial-rubbing');
+  const a = await buildRecordPdfBytes(m, { fonts }), b = await buildRecordPdfBytes(m, { fonts });
+  ok('整年 PDF 两次构建字节一致(不盖时间戳)', a.length === b.length && Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0);
+  const c = await buildMonthPdfBytes(m, 1, { fonts }), d = await buildMonthPdfBytes(m, 1, { fonts });
+  ok('单月 PDF 两次构建字节一致', c.length === d.length && Buffer.compare(Buffer.from(c), Buffer.from(d)) === 0);
+}
+
 console.log('\n[3] 边角料不崩');
 const cases = [
   ['空活动', toRecordModel([], 2026), 5],

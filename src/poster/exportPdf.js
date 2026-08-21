@@ -119,7 +119,9 @@ export async function buildRecordPdfBytes(model, opts = {}) {
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
   const mediaWmm = g.PAGE.w + 2 * g.BLEED, mediaHmm = g.PAGE.h + 2 * g.BLEED;
 
-  const doc = await PDFDocument.create();
+  // updateMetadata:false —— 不让 pdf-lib 往文件里盖当前时间; 组件承诺确定性输出,
+  // 同一份数据必须出同一串字节(否则每跑一次自测, 校样 PDF 就在仓里假变更一次)
+  const doc = await PDFDocument.create({ updateMetadata: false });
   const page = doc.addPage([mediaWmm * MM, mediaHmm * MM]);
 
   let latin, latinB, cjk = null;
@@ -255,7 +257,9 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
   const g = monthGeometry(weeksInMonth(year, m));
   const mediaWmm = MONTH_PAGE.w + 2 * MONTH_PAGE.BLEED, mediaHmm = MONTH_PAGE.h + 2 * MONTH_PAGE.BLEED;
 
-  const doc = await PDFDocument.create();
+  // updateMetadata:false —— 不让 pdf-lib 往文件里盖当前时间; 组件承诺确定性输出,
+  // 同一份数据必须出同一串字节(否则每跑一次自测, 校样 PDF 就在仓里假变更一次)
+  const doc = await PDFDocument.create({ updateMetadata: false });
   const page = doc.addPage([mediaWmm * MM, mediaHmm * MM]);
 
   let latin, cjk = null;
