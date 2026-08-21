@@ -231,7 +231,11 @@ export function renderStatCard(stats, opts = {}) {
     activities: { v: s.activities ?? 0, label: '条活动' },
     avg: { v: s.weight?.avgPerActiveDay ?? 0, label: '活跃日均' },
   };
-  const keys = (opts.metrics || ['activeDays', 'weight', 'streak', 'milestones']).filter((k) => METRICS[k]);
+  // 默认指标:里程碑那格只在**真有里程碑**时才占位置。
+  // CO 场景没有"里程碑"这个概念(恒为 0), 一直杵着一个 0 看起来像坏了或没做完;
+  // 换成"条活动"更实在。调用方显式给了 metrics 就完全照办, 不替它做主。
+  const hasMs = (s.milestones || []).length > 0;
+  const keys = (opts.metrics || ['activeDays', 'weight', 'streak', hasMs ? 'milestones' : 'activities']).filter((k) => METRICS[k]);
   const byType = (s.byType || []).filter((t) => t.weight > 0);
   const summaryText = opts.summaryText ?? (s.days ? summarize(s) : '');
   const withSummary = opts.summary !== false && !!summaryText;

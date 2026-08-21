@@ -13,7 +13,14 @@ export const ACTIVITY_TYPES = [
   { id: 'writing',  name: '写作' },
   { id: 'research', name: '研究' },
   { id: 'build',    name: '构建' },
-  { id: 'publish',  name: '出版' }, // 出版=里程碑级
+  { id: 'publish',  name: '出版' },
+  // —— CO 真有的三类(2026-08-21 CO 口径)——
+  // 类型本来就是开放的(没登记也能画), 之所以还是登记进来, 只为**定色**:
+  // 不登记就走哈希派生色, 实测三类抽到紫 + 苍绿 + 秋香, 紫在暖麦纸上发塑料、
+  // 整张图变成紫绿相间, 跟「暖·手作·编辑」的气质对不上。手挑一组矿物色更稳。
+  { id: '收灵感', name: '收灵感' },
+  { id: '分析',   name: '分析' },
+  { id: '整理',   name: '整理' },
 ];
 
 // 分类色系统(取真值 · 国画矿物色):五类各据一个矿物色相, 拉开可辨,
@@ -29,11 +36,16 @@ export const PALETTES = {
     writing: '#b5794f',  // 赭石
     research: '#6f8ea0', // 花青
     build: '#86a07e',    // 石绿
-    publish: SEAL,       // 朱砂(不作格底, 走朱砂印通道)
+    publish: SEAL,       // 朱砂
+    // CO 三类定色 —— 取意也取真值:
+    //   收灵感=花青(从外面收进来的东西, 冷一点)· 分析=赭石(案头拆解, 暖褐)
+    //   整理=石绿(归置收束, 沉静)。三色同属矿物家族, 彼此拉得开, 落暖麦纸不跳。
+    收灵感: '#6f8ea0', 分析: '#b5794f', 整理: '#86a07e',
   },
-  // A 全拓: 单色墨(类型不着色, 只用墨深浅), 出版=朱砂
+  // A 全拓: 单色墨(类型不着色, 只用墨深浅)
   'tuogu-ink': {
     design: '#211b14', writing: '#211b14', research: '#211b14', build: '#211b14', publish: SEAL,
+    收灵感: '#211b14', 分析: '#211b14', 整理: '#211b14',
   },
 };
 
@@ -131,13 +143,61 @@ export const MAX_LEVEL = 4;
 
 // 三条硬规则(见 docs/数据契约-占位.md):
 //   · 留白  —— 当天没活动(count=0) → level 0, 不落格(素纸留白, 讲"没做/远行")
-//   · 墨深  —— count>0 → level 1..4, 墨色由浅到深 = 当日投入由少到多
-//   · 里程碑 —— 出版(milestone)另走朱砂印通道, 不占 level; 里程碑当天仍可有普通活动着墨
-// 分档抗离群值: 小整数投入量直接成档; 投入量跨度大时才线性缩放到 1..MAX_LEVEL。
-function levelFor(count, maxW) {
-  if (count <= 0) return 0;                                       // 留白
-  if (maxW <= MAX_LEVEL) return Math.min(MAX_LEVEL, count);       // 小整数: 投入量即档(1→浅…4→深)
-  return Math.max(1, Math.min(MAX_LEVEL, Math.round((count / maxW) * MAX_LEVEL))); // 大跨度: 线性缩放
+//   · 墨深  —— count>0 → level 1..4, 墨色由浅到深 = 当日**相对**投入(见下)
+//   · 里程碑 —— milestone 另走朱砂印通道, 不占 level; 里程碑当天仍可有普通活动着墨
+//
+// 分档按**分布**切, 不按最大值缩放。
+// 原来是 count/maxWeight 线性缩放, 一个离群日就把所有典型日压到最浅那档 ——
+// CO 口径实测(weight=当天条目数): 全年最忙那天 20 条时, 177 个有痕天里 174 天落在 L1,
+// 整张图几乎一个色, "留痕"的深浅就没了。改成按有痕天的分位数切 4 档:
+// 不管有没有离群值, 四档都用得上, 深浅始终读得出。
+//
+// 代价(要写进契约): 墨深表达的是"这天比别天忙不忙", 不是绝对量。
+// 绝对量在统计与简报里说(count / weight.sum), 那才是该说数字的地方。
+//
+// @param {number[]} counts 有痕天的 count 列表(未排序)
+// @returns {number[]} 三个阈值 [t1,t2,t3]: count<=t1→L1, <=t2→L2, <=t3→L3, 否则 L4
+export function levelThresholds(counts) {
+  const xs = counts.filter((n) => n > 0).sort((a, b) => a - b);
+  if (!xs.length) return [0, 0, 0];
+  const distinct = [...new Set(xs)];
+  // 取值种类少于等于档数时, 直接按序位分档 —— 保住"1 条最浅、2 条深一点"的直觉,
+  // 也避免分位数在只有两三种取值时把相同的数切到不同档去。
+  if (distinct.length <= MAX_LEVEL) {
+    const t = [...distinct];
+    while (t.length < MAX_LEVEL) t.push(t[t.length - 1]);
+    return [t[0], t[1], t[2]];
+  }
+  // 在"不同取值"的边界上找三刀, 让四档的**天数**尽量接近各占四分之一。
+  // (直接取分位数会在取值集中时把两刀切到同一个值上, 白白空掉一档;
+  //  直接按取值均匀切又不看天数分布, 可能一档吃掉 8 成的天。)
+  // 相同的 count 永远同档 —— 切点只落在取值边界上, 这条不能破。
+  const cum = [];
+  let acc = 0;
+  for (const v of distinct) { acc += xs.filter((n) => n === v).length; cum.push({ v, acc }); }
+  const cuts = [];
+  let start = 0;
+  for (let i = 1; i <= MAX_LEVEL - 1; i++) {
+    const target = (xs.length * i) / MAX_LEVEL;
+    const last = cum.length - 2;               // 最后一个取值不能当切点, 否则 L4 空
+    let best = Math.min(start, last), bestD = Infinity;
+    for (let j = start; j <= last; j++) {
+      const d = Math.abs(cum[j].acc - target);
+      if (d < bestD) { bestD = d; best = j; }
+    }
+    cuts.push(cum[best].v);
+    start = Math.min(best + 1, last);
+  }
+  return cuts;
+}
+
+function levelFor(count, thresholds) {
+  if (count <= 0) return 0;                       // 留白
+  const [t1, t2, t3] = thresholds;
+  if (count <= t1) return 1;
+  if (count <= t2) return 2;
+  if (count <= t3) return 3;
+  return MAX_LEVEL;
 }
 
 // 日期校验:必须是 'YYYY-MM-DD', 且是真实存在的一天(2026-02-30 不算)。
@@ -201,9 +261,11 @@ export function toDailySeries(activities, yearIn = 2026) {
   // 会把今年的墨深整体压平(实测 1,2,3 会塌成 1,1,1), 是一种看不见的数据损坏。
   const part = partitionActivities(activities, year);
   const by = aggregateByDay(part.kept);
-  const maxW = Math.max(1, ...Object.values(by).map((g) => g.weight));
+  const counts = Object.values(by).map((g) => g.weight);
+  const maxW = Math.max(1, ...counts);
+  const th = levelThresholds(counts);   // 按分布切档, 不按最大值缩放(见 levelThresholds)
   const series = Object.entries(by).map(([date, g]) => ({
-    date, count: g.weight, level: levelFor(g.weight, maxW),
+    date, count: g.weight, level: levelFor(g.weight, th),
     dominant: g.dominant, note: g.titles[0], milestone: g.milestone, hasMilestone: g.hasMilestone,
   }));
   series.sort((a, b) => (a.date < b.date ? -1 : 1));

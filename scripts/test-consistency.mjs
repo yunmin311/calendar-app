@@ -1,7 +1,7 @@
 // 一致性与静默丢数据 —— 本轮自审揪出来的问题, 每条都钉一个回归断言在这里。
 // 组件的核心承诺只有一句:**统计说有的, 图上必须画得出来; 图上没有的, 统计也不该算。**
 // 用法: node scripts/test-consistency.mjs
-import { toRecordModel, toDailySeries, aggregateByDay, parseDate, weightOf, partitionActivities } from '../src/data/activity.js';
+import { toRecordModel, toDailySeries, aggregateByDay, parseDate, weightOf, partitionActivities, levelThresholds } from '../src/data/activity.js';
 import { computeStats } from '../src/data/stats.js';
 import { renderRecord } from '../src/poster/renderRecord.js';
 import { renderMonth } from '../src/poster/renderMonth.js';
@@ -108,8 +108,16 @@ console.log('\n[7] 极端数据下版面不崩');
   const hsvg = renderRecord(hm, {});
   ok('超长标题 + 特殊字符: 已转义, 不崩', hsvg.includes('</svg>') && !hsvg.includes('<script>'));
   ok('单月页超长标题被截断', renderMonth(hm, 3, {}).includes('…'));
+  // 分档是按分布切的(见 levelThresholds), 所以"只有一种忙碌程度"时没有深浅可言 —— 全部同档。
+  // 绝对量该由统计与简报去说(count / weight.sum), 那才是说数字的地方。
   const sameDay = Array.from({ length: 200 }, () => A('2026-09-09', 'design', 1));
-  ok('同一天 200 条 → level 封顶 4', toRecordModel(sameDay, 2026).days['2026-09-09'].level === 4);
+  ok('全年只有一天有痕 → 不崩且落在合法档', [1, 2, 3, 4].includes(toRecordModel(sameDay, 2026).days['2026-09-09'].level));
+  const flat = Array.from({ length: 5 }, (_, i) => A(`2026-09-0${i + 1}`, 'design', 3));
+  ok('取值只有一种 → 所有天同档', new Set(Object.values(toRecordModel(flat, 2026).days).map((d) => d.level)).size === 1);
+  const spread = [1, 2, 4, 8, 16, 32].map((w, i) => A(`2026-10-0${i + 1}`, 'design', w));
+  const sl = Object.values(toRecordModel(spread, 2026).days).map((d) => d.level);
+  ok('有多种取值时最忙那天落 L4', sl[sl.length - 1] === 4, sl);
+  ok('level 随 count 单调不降', sl.every((v, i) => i === 0 || v >= sl[i - 1]), sl);
 }
 
 console.log('\n[8] 分拣入口是唯一的(统计与渲染不可能各走各的)');
@@ -121,6 +129,30 @@ console.log('\n[8] 分拣入口是唯一的(统计与渲染不可能各走各的
   ok('toDailySeries 用的就是它', ds.kept.length === 1 && ds.dropped.otherYear === 1);
   ok('computeStats 报同一份 dropped', JSON.stringify(computeStats(acts, { year: 2026 }).dropped) === JSON.stringify(ds.dropped));
   ok('aggregateByDay 单独调用也跳非法日期', Object.keys(aggregateByDay(acts)).length === 2); // 2026 与 2025 各一天, 非法的被跳过
+}
+
+console.log('\n[7b] 分档按分布切:一个离群日不许把所有典型日压到最浅那档(CO 口径 weight=条目数)');
+{
+  const build = (peak) => {
+    const acts = [];
+    for (let d = 1; d <= 28; d++) acts.push(A(`2026-02-${String(d).padStart(2, '0')}`, 'x', (d % 4) + 1));
+    acts.push(A('2026-02-15', 'x', peak));   // 一个大离群日
+    return acts;
+  };
+  const dist = (acts) => { const lv = [0, 0, 0, 0, 0]; for (const d of Object.values(toRecordModel(acts, 2026).days)) lv[d.level]++; return lv.slice(1); };
+  for (const peak of [8, 30, 200]) {
+    const l = dist(build(peak));
+    ok(`离群日 ${peak} 条:四档都用得上(不塌成一档)`, l.filter((n) => n > 0).length >= 3 && Math.max(...l) < 25, l);
+  }
+  ok('离群值大小不改变其余天的分档', JSON.stringify(dist(build(30))) === JSON.stringify(dist(build(200))), [dist(build(30)), dist(build(200))]);
+  ok('相同 count 永远同档', (() => {
+    const acts = [1, 2, 2, 2, 3, 3, 9].map((w, i) => A(`2026-04-0${i + 1}`, 'x', w));
+    const byCount = {};
+    for (const d of Object.values(toRecordModel(acts, 2026).days)) (byCount[d.count] ||= new Set()).add(d.level);
+    return Object.values(byCount).every((s) => s.size === 1);
+  })());
+  ok('levelThresholds 递增且长度 3', (() => { const t = levelThresholds([1, 2, 3, 4, 5, 6, 7, 8]); return t.length === 3 && t[0] <= t[1] && t[1] <= t[2]; })(), levelThresholds([1, 2, 3, 4, 5, 6, 7, 8]));
+  ok('空输入不崩', JSON.stringify(levelThresholds([])) === JSON.stringify([0, 0, 0]));
 }
 
 console.log('\n[8b] 年份传字符串不许丢东西(实测过: 整年图上所有朱砂印会全部消失)');

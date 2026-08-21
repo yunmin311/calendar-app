@@ -98,9 +98,10 @@ export function highlights(stats, cmp, { md = false } = {}) {
     if (fresh.length) out.push(`这期新开的:${fresh.join('、')}。`);
   }
 
+  // 有里程碑才提。原来没有时会说"这段没有里程碑" —— 在 CO 场景(没有里程碑这个概念)
+  // 每一期都念一遍一件永远不会发生的事, 是纯噪音。秘书的价值在于指出, 不在于凑话。
   const ms = stats.milestones || [];
   if (ms.length) out.push(`里程碑 ${ms.length} 个:${ms.map((m) => `${String(m.date).slice(5)}${m.label ? ' ' + E(m.label) : ''}`).join('、')}。`);
-  else if (r.days && r.days <= 62) out.push('这段没有里程碑。');
 
   if (stats.busiest) out.push(`最忙是 ${stats.busiest.date}(投入 ${stats.busiest.count}${stats.busiest.note ? ',' + E(stats.busiest.note) : ''})。`);
   return out;
