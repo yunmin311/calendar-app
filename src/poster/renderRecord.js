@@ -125,13 +125,16 @@ export function renderRecord(model, opts = {}) {
   let lx = g.contentX;
   const legend = legendItems(model, c);   // 只列图上真出现过的分类 + 里程碑(见 paint.js)
   const legendLimit = g.gridRight - 92; // 右侧留给印刷标注; 分类多时图例排到这儿为止
+  // 包成一组并标记, 便于精确对账(分类名可能与活动标题同名, 全文搜字会误判)
+  const leg = [];
   for (const it of legend) {
-    if (lx + 4 + it.name.length * 2.8 > legendLimit) { p.push(T(lx, fb, '…', { size: 2.8, fill: c.inkSoft })); break; }
-    if (it.ink) p.push(R(lx, fb - 2, 2.8, 2.8, c.ink, 'opacity="0.8"'));
-    else p.push(R(lx, fb - 2, 2.8, 2.8, it.color, `stroke="${c.line}" stroke-width="0.2"`));
-    p.push(T(lx + 4, fb, it.name, { size: 2.8, font: KAI, fill: c.inkSoft, anchor: 'start' }));
+    if (lx + 4 + it.name.length * 2.8 > legendLimit) { leg.push(T(lx, fb, '…', { size: 2.8, fill: c.inkSoft })); break; }
+    if (it.ink) leg.push(R(lx, fb - 2, 2.8, 2.8, c.ink, 'opacity="0.8"'));
+    else leg.push(R(lx, fb - 2, 2.8, 2.8, it.color, `stroke="${c.line}" stroke-width="0.2"`));
+    leg.push(T(lx + 4, fb, it.name, { size: 2.8, font: KAI, fill: c.inkSoft, anchor: 'start' }));
     lx += 4 + it.name.length * 2.8 + 6;
   }
+  p.push(`<g data-part="legend">${leg.join('')}</g>`);
   p.push(T(g.gridRight, fb, '印刷级 · CMYK · 3mm 出血 · 嵌字', { size: 2.8, font: KAI, fill: c.inkSoft, anchor: 'end' }));
 
   // 纸面手工质感(最上层)

@@ -14,6 +14,8 @@ const SUITES = [
   ['一致性/不丢数据', 'test-consistency.mjs'],
   ['印刷 PDF(整年+单月)', 'test-record-pdf.mjs'],
   ['印刷坐标=屏幕几何', 'test-print-geometry.mjs'],
+  ['CO 口径验收', 'test-co.mjs'],
+  ['端到端一致性', 'test-endtoend.mjs'],
 ];
 
 let failed = 0;

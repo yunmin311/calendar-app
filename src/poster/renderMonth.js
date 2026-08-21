@@ -142,13 +142,17 @@ export function renderMonth(model, monthIndex = 0, opts = {}) {
   p.push(L(M.l, PAGE.h - M.b - FOOT_H, gridRight, PAGE.h - M.b - FOOT_H, c.line, 0.3));
   let lx = M.l;
   const legend = legendItems(model, c, { month: m, compact: true });   // 只列当月出现过的分类
+  // 图例包成一组并标记 —— 分类名和活动标题可能同名(旧样例里就有个标题叫「分析」),
+  // 靠全文搜字判断"图例列了什么"会误判, 有这个标记才能精确对账(见 test-endtoend)。
+  const leg = [];
   for (const it of legend) {
-    if (lx + 4.2 + it.name.length * 3 > gridRight) { p.push(T(lx, fy, '…', { size: 3, fill: c.inkSoft })); break; }
-    if (it.ink) p.push(R(lx, fy - 2.4, 3, 3, c.ink, 'opacity="0.8"'));
-    else p.push(R(lx, fy - 2.4, 3, 3, it.color, `stroke="${c.line}" stroke-width="0.2"`));
-    p.push(T(lx + 4.2, fy, it.name, { size: 3, font: KAI, fill: c.inkSoft, anchor: 'start' }));
+    if (lx + 4.2 + it.name.length * 3 > gridRight) { leg.push(T(lx, fy, '…', { size: 3, fill: c.inkSoft })); break; }
+    if (it.ink) leg.push(R(lx, fy - 2.4, 3, 3, c.ink, 'opacity="0.8"'));
+    else leg.push(R(lx, fy - 2.4, 3, 3, it.color, `stroke="${c.line}" stroke-width="0.2"`));
+    leg.push(T(lx + 4.2, fy, it.name, { size: 3, font: KAI, fill: c.inkSoft, anchor: 'start' }));
     lx += 4.2 + it.name.length * 3 + 5;
   }
+  p.push(`<g data-part="legend">${leg.join('')}</g>`);
 
   // 手工质感(最上层, 轻)
   p.push(texture.body);
