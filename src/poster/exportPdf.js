@@ -12,7 +12,7 @@ import { resolveVariant } from './renderRecord.js';
 import { MONTH_PAGE, monthGeometry, weeksInMonth, clampMonth, monthNumX } from './renderMonth.js';
 import { toRecordModel } from '../data/activity.js';
 import { resolveTexture } from '../texture/index.js';
-import { inkOpacity, legendItems, monthTotals, milestonesByDay, clipText } from './paint.js';
+import { inkOpacity, legendItems, monthTotals, milestonesByDay, clipText, masthead } from './paint.js';
 
 const MM = 2.834645669; // 1mm = 2.834645669pt
 
@@ -153,9 +153,11 @@ export async function buildRecordPdfBytes(model, opts = {}) {
   }
 
   // ② 报头(矢量)
-  if (mono) text(g.contentX, g.contentY + 20, c.era, 20, inkC, kai);
-  else      text(g.contentX, g.contentY + 20, String(year), 20, inkC, latinB);
-  text(g.contentX + (mono ? 30 : 52), g.contentY + 18, c.title, 8, inkC, kai);
+  // 报头与屏幕同源(paint.masthead)。注:以前印刷这边非 mono 时硬印年份数字,
+  // 皮肤给了 era 也不认 —— 屏幕显示"丙午"、印出来却是 2026, 同一件事两处各写一遍。
+  const head = masthead(c, year);
+  text(g.contentX, g.contentY + 20, head.era, 20, inkC, head.cjk ? kai : latinB);
+  text(g.contentX + head.titleDX, g.contentY + 18, c.title, 8, inkC, kai);
   const mx = g.gridRight;
   text(mx, g.contentY + 7,  c.sub1, 2.9, softC, kai, 'end');
   text(mx, g.contentY + 13, 'Format A1 · 841x594 mm', 2.9, softC, latin, 'end');

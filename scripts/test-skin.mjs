@@ -2,6 +2,7 @@
 // 设计方给的是一份**值**, 不是一个 PR。用法: node scripts/test-skin.mjs
 import { createRecord, renderRecord, renderMonth, renderStrip, renderStatCard, renderGroupBars,
   resolveVariant, RECORD_VARIANTS, buildRecordPdfBytes, buildMonthPdfBytes } from '../src/record/index.js';
+import { masthead } from '../src/poster/paint.js';
 import { sampleCOActivities } from '../src/data/sample-co.js';
 
 let pass = 0, fail = 0;
@@ -86,5 +87,23 @@ console.log('\n[5] 换皮肤不改数据:同一份数据, 数字必须一模一�
   ok('简报文字一样(皮肤只管好看, 不管说什么)', a.report() === b.report());
 }
 
+console.log('\n[6] 报头随纪年字排布(换皮肤最容易压字的地方)');
+{
+  const titleX = (svg) => Number((svg.match(/<text x="([\d.]+)"[^>]*font-size="8"/) || [])[1]);
+  const D = 20;   // 报头纪年字号
+  ok('默认视觉不变: 2026 → 标题 x 仍是 52', masthead({ era: '2026' }, 2026, D).titleDX === 52, masthead({ era: '2026' }, 2026, D));
+  ok('纪年字越长, 标题越往右', masthead({ era: '二〇二六' }, 2026, D).titleDX > masthead({ era: '丙午' }, 2026, D).titleDX);
+  ok('皮肤不写 era 就退回年份数字', masthead({}, 2026, D).era === '2026' && masthead({ era: '' }, 2026, D).era === '2026');
+  ok('只把 mono 打开(纪年仍是 2026)不该挪标题',
+    titleX(createRecord(acts, { year: 2026, variant: { mono: true } }).yearSVG()) === titleX(createRecord(acts, { year: 2026 }).yearSVG()));
+  ok('给长纪年, 图上标题真的跟着右移(不压字)',
+    titleX(createRecord(acts, { year: 2026, variant: { era: '二〇二六' } }).yearSVG()) > titleX(createRecord(acts, { year: 2026 }).yearSVG()));
+  ok('纪年是中文就换楷体, 是数字就走衬线',
+    /二〇二六<\/text>/.test(createRecord(acts, { year: 2026, variant: { era: '二〇二六' } }).yearSVG()));
+  const m = createRecord(acts, { year: 2026, variant: { era: '丙午' } }).model;
+  const withEra = await buildRecordPdfBytes(m, {});
+  const plain = await buildRecordPdfBytes(createRecord(acts, { year: 2026 }).model, {});
+  ok('印刷也认皮肤给的纪年(不再硬印年份数字)', withEra.length !== plain.length, [withEra.length, plain.length]);
+}
 console.log(`\n结果: ${pass} 过 / ${fail} 挂`);
 process.exit(fail ? 1 : 0);

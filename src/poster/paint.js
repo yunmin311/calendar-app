@@ -92,3 +92,23 @@ export function legendItems(model, c, { month = null, compact = false } = {}) {
   }
   return items;
 }
+
+// —— 报头:纪年字 + 标题 ——
+// 以前标题的横向位置是按 mono 猜的魔数(mono?30:52), 于是只要纪年字不是它假设的那个长度就压字:
+// 「只把 mono 打开」(纪年仍是 2026)、「给一个更长的纪年(二〇二六)」都实测糊成一团。
+// 现在只有一条规则:纪年字有多宽, 标题就往右挪多少 —— 屏幕与印刷共用这一处。
+export const HAS_CJK = (s) => /[\u2e80-\u9fff\uf900-\ufaff\u3000-\u303f]/.test(String(s));
+
+/** 粗估一串字的宽度(mm)。CJK 近似满宽, 拉丁数字约 0.55 宽 —— 只用来排布, 不求精确。 */
+export function textWidth(str, size) {
+  return [...String(str ?? '')].reduce((w, ch) => w + size * (HAS_CJK(ch) ? 1 : 0.55), 0);
+}
+
+/**
+ * 报头两件事:显示哪串纪年字、标题该从哪儿开始。
+ * era 缺省时退回年份数字(所以皮肤不写 era 也不会开天窗)。
+ */
+export function masthead(c = {}, year, size = 20) {
+  const era = c.era == null || c.era === '' ? String(year) : String(c.era);
+  return { era, cjk: HAS_CJK(era), titleDX: textWidth(era, size) + size * 0.4 };
+}

@@ -141,6 +141,7 @@ node scripts/build-texture-gallery.mjs      # 四质感样品册 HTML
 node scripts/build-embed-demo.mjs           # 可嵌入小件演示 HTML
 node scripts/build-record-comparisons.mjs   # 整年 A/B 对照 HTML
 node scripts/build-month-preview.mjs        # 单月详情预览 HTML
+node scripts/build-co-preview.mjs           # CO 口径预览页(六个出口一页看完 + 单色墨备选)
 node scripts/build-index.mjs                # 总入口页 design/index.html(缺文件/死链会报错)
 ```
 

@@ -32,6 +32,12 @@ const SECTIONS = [
         how: 'node scripts/build-month-preview.mjs',
       },
       {
+        path: '2026-08-21-co-semantics/co-preview.html',
+        name: 'CO 口径预览 · 六个出口一页看完',
+        what: '按 CO 真给的映射(weight=当天条目数 · 三类收灵感/分析/整理 · 里程碑恒 false)出的样子 —— 三色搭不搭、零里程碑的版面成不成立、墨深有没有塌成一档,都看这页。',
+        how: 'node scripts/build-co-preview.mjs',
+      },
+      {
         path: '2026-08-19-texture-module/01-可嵌入小件演示.html',
         name: '可嵌入小件 · 演示',
         what: '同一份数据塞进侧栏尺寸的小件:活动带 / 统计卡 / 分组横条。同页 14 个实例互不撞车(滤镜 id 按内容派生)。',

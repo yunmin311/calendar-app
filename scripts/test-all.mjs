@@ -17,7 +17,8 @@ const SUITES = [
   ['CO 口径验收', 'test-co.mjs'],
   ['皮肤可换性', 'test-skin.mjs'],
   ['端到端一致性', 'test-endtoend.mjs'],
-  // 出页顺带自检: 清单缺文件 / 链接是死的 → 非零退出(演示页别再变孤儿)
+  // 出页顺带自检: 页上不许有 undefined/NaN;清单缺文件 / 链接是死的 → 非零退出
+  ['CO 口径预览页', 'build-co-preview.mjs'],
   ['演示入口页', 'build-index.mjs'],
 ];
 

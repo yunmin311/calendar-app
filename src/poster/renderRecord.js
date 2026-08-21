@@ -5,7 +5,7 @@
 import { geometry, cellRect, dayCenterX } from './layout.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
 import { resolveTexture } from '../texture/index.js';
-import { inkOpacity, legendItems } from './paint.js';
+import { inkOpacity, legendItems, masthead } from './paint.js';
 
 const KAI = '"KaiTi","STKaiti","楷体","LXGW WenKai",serif';
 const SER = 'Georgia,"Times New Roman","Songti SC",serif';
@@ -83,8 +83,9 @@ export function renderRecord(model, opts = {}) {
   p.push(R(0, 0, g.PAGE.w, g.PAGE.h, c.paper));
 
   // 报头
-  p.push(T(g.contentX, g.contentY + 20, c.era, { size: 20, font: c.mono ? KAI : SER, fill: c.ink }));
-  p.push(T(g.contentX + (c.mono ? 30 : 52), g.contentY + 18, c.title, { size: 8, font: KAI, fill: c.ink, spacing: 3 }));
+  const head = masthead(c, year);   // 纪年字宽 → 标题起点(单一真源, 见 paint.js)
+  p.push(T(g.contentX, g.contentY + 20, head.era, { size: 20, font: head.cjk ? KAI : SER, fill: c.ink }));
+  p.push(T(g.contentX + head.titleDX, g.contentY + 18, c.title, { size: 8, font: KAI, fill: c.ink, spacing: 3 }));
   const mx = g.gridRight;
   p.push(T(mx, g.contentY + 7, c.sub1, { size: 2.9, font: KAI, fill: c.inkSoft, anchor: 'end' }));
   p.push(T(mx, g.contentY + 13, 'Format A1 · 841×594 mm', { size: 2.9, fill: c.inkSoft, anchor: 'end' }));
