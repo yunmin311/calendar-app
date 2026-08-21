@@ -8,7 +8,7 @@
 //   subset 由 @pdf-lib/fontkit 完成(只嵌用到的字形), 不需要外部 pyftsubset。
 import { geometry, cellRect, dayCenterX } from './layout.js';
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, isWeekend, iso } from '../data/model.js';
-import { RECORD_VARIANTS } from './renderRecord.js';
+import { resolveVariant } from './renderRecord.js';
 import { MONTH_PAGE, monthGeometry, weeksInMonth, clampMonth, monthNumX } from './renderMonth.js';
 import { toRecordModel } from '../data/activity.js';
 import { resolveTexture } from '../texture/index.js';
@@ -54,7 +54,7 @@ async function fetchFont(url) {
 // 生成「纸+拓质」背景 PNG 字节。注意: 输出是 RGB PNG(pdf-lib 只吃 RGB/灰度), 印刷时由 RIP 转 CMYK;
 // 矢量层(文字/线/色块/裁切标)才是真 CMYK。做扎实: 任何失败都返回 null → 上层退化纯矢量, 绝不拖垮导出。
 export function buildTextureSVG({ mediaWmm, mediaHmm, variant = 'editorial-rubbing', pxW, pxH, texture: texOpt, freqMul = 1 }) {
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   // mm 视口 → 与屏幕渲染同频同参: 走同一个 texture 模块(单一真源, 印刷不会跟屏幕漂)。
   // freqMul 必须与对应渲染函数一致(整年长条 1 / 单月卡 2.2), 否则印出来的质感比屏幕粗。
   const tex = resolveTexture(texOpt, c, { freqMul });
@@ -109,7 +109,7 @@ export async function buildRecordPdfBytes(model, opts = {}) {
   const { PDFDocument, StandardFonts, cmyk } = await import('../vendor/pdf-lib.esm.js');
   const fonts = opts.fonts || {};
   const variant = model.variant || 'editorial-rubbing';
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   const mono = !!c.mono;
 
   const hexToCmyk = makeHexToCmyk(cmyk);
@@ -242,7 +242,7 @@ export async function buildMonthPdfBytes(model, monthIndex = 0, opts = {}) {
   const { PDFDocument, StandardFonts, cmyk } = await import('../vendor/pdf-lib.esm.js');
   const fonts = opts.fonts || {};
   const variant = model.variant || 'editorial-rubbing';
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   const mono = !!c.mono;
 
   const hexToCmyk = makeHexToCmyk(cmyk);

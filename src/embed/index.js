@@ -15,7 +15,7 @@
 import { MONTHS_NUM, daysInMonth, dow, iso } from '../data/model.js';
 import { PALETTES, assignPigments } from '../data/activity.js';
 import { summarize } from '../data/stats.js';
-import { RECORD_VARIANTS } from '../poster/renderRecord.js';
+import { resolveVariant } from '../poster/renderRecord.js';
 import { clampMonth } from '../poster/renderMonth.js';
 import { inkOpacity } from '../poster/paint.js';
 import { resolveTexture } from '../texture/index.js';
@@ -58,7 +58,7 @@ function svgOpen(w, h, extra = '') {
  */
 export function renderStrip(model, opts = {}) {
   const variant = opts.variant || model?.variant || 'editorial-rubbing';
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   const mono = !!c.mono;
   const { year = 2026, categories = [], days = {}, milestones = [] } = model || {};
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));
@@ -145,7 +145,7 @@ export function renderStrip(model, opts = {}) {
  */
 export function renderGroupBars(stats, opts = {}) {
   const variant = opts.variant || 'editorial-rubbing';
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   const s = stats || {};
   const by = ['weight', 'days', 'count'].includes(opts.by) ? opts.by : 'weight';
   const max = Math.max(1, opts.max ?? 8);
@@ -162,7 +162,9 @@ export function renderGroupBars(stats, opts = {}) {
   // A 全拓是单色墨那一版, 条也只用墨 —— 长短已经够分辨, 冒出彩色就破了那身皮。
   const mono = !!c.mono;
   const pal = useGroups && !mono ? assignPigments(rows.map((x) => x.id)) : null;
-  const colorOf = (x) => (mono ? c.ink : (useGroups ? pal.get(x.id) : (PALETTES[variant] || PALETTES['editorial-rubbing'])[x.id] || c.ink));
+  // 分类色优先跟皮肤走(设计方给的皮肤可以自带 palette), 其次才是预置色板
+  const catPal = c.palette || PALETTES[variant] || PALETTES['editorial-rubbing'];
+  const colorOf = (x) => (mono ? c.ink : (useGroups ? pal.get(x.id) : catPal[x.id] || c.ink));
 
   const W = opts.width ?? 120, pad = 6;
   const labelW = Math.min(30, W * 0.26), rowH = 6.4, gap = 1.6;
@@ -216,11 +218,11 @@ export function renderGroupBars(stats, opts = {}) {
  */
 export function renderStatCard(stats, opts = {}) {
   const variant = opts.variant || 'editorial-rubbing';
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   const s = stats || {};
   const W = opts.width ?? 120;
   const pad = 6;
-  const palette = opts.palette || PALETTES[variant] || PALETTES['editorial-rubbing'];
+  const palette = opts.palette || c.palette || PALETTES[variant] || PALETTES['editorial-rubbing'];
 
   const METRICS = {
     activeDays: { v: s.days?.active ?? 0, label: '天有痕' },

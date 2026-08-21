@@ -36,6 +36,21 @@ const V = {
 // 导出变体配置, 供 exportPdf 复用同一套色值/纹理参数(单一真源, 屏幕=印刷同参)
 export const RECORD_VARIANTS = V;
 
+export const DEFAULT_VARIANT = 'editorial-rubbing';
+
+/**
+ * 解析皮肤 —— variant 可以是预置名, **也可以直接是一份配置对象**。
+ *
+ * 这是"接设计稿"的入口:设计方给一套值(纸色/墨色/朱砂/分类色/质感参数),
+ * 调用方直接把对象传进来就能换一副样子, **不用改代码、不用往仓里加变体**。
+ * 传对象时与默认皮肤浅合并, 所以只写要改的那几项即可。
+ * 可换的参数清单见 docs/可换参数清单.md。
+ */
+export function resolveVariant(v) {
+  if (v && typeof v === 'object') return { ...V[DEFAULT_VARIANT], ...v };
+  return V[v] || V[DEFAULT_VARIANT];
+}
+
 // 纸色晕同 renderMonth: 「出版」类的格底也是朱砂, 不套晕印章会糊在自己那类格子上
 function seal(x, y, label, c) {
   const s = 4.2;
@@ -46,8 +61,8 @@ function seal(x, y, label, c) {
 }
 
 export function renderRecord(model, opts = {}) {
-  const variant = opts.variant || model.variant || 'editorial-rubbing';
-  const c = V[variant] || V['editorial-rubbing'];
+  const variant = opts.variant || model.variant || DEFAULT_VARIANT;
+  const c = resolveVariant(variant);   // 预置名或设计方给的皮肤对象都吃
   const g = geometry();
   const { year, categories = [], days = {}, milestones = [] } = model;
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));

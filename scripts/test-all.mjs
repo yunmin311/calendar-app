@@ -15,6 +15,7 @@ const SUITES = [
   ['印刷 PDF(整年+单月)', 'test-record-pdf.mjs'],
   ['印刷坐标=屏幕几何', 'test-print-geometry.mjs'],
   ['CO 口径验收', 'test-co.mjs'],
+  ['皮肤可换性', 'test-skin.mjs'],
   ['端到端一致性', 'test-endtoend.mjs'],
 ];
 

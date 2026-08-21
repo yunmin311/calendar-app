@@ -22,7 +22,7 @@ export { computeStats, monthStats, summarize, monthRange, daysBack } from '../da
 // —— 简报:统计 → 能直接粘贴进对话的纯文本(秘书交差用)——
 export { digest, compare, highlights, previousRange, reportFor } from '../data/digest.js';
 // —— 渲染:整年长条 / 单月详情(印刷大件)——
-export { renderRecord, RECORD_VARIANTS } from '../poster/renderRecord.js';
+export { renderRecord, RECORD_VARIANTS, resolveVariant, DEFAULT_VARIANT } from '../poster/renderRecord.js';
 export { renderMonth } from '../poster/renderMonth.js';
 // —— 可嵌入小件:活动带 / 统计卡(同页可放无限个, id 自动隔离)——
 export { renderStrip, renderStatCard, renderGroupBars } from '../embed/index.js';
@@ -39,6 +39,8 @@ import { renderMonth } from '../poster/renderMonth.js';
 import { renderStrip, renderStatCard, renderGroupBars } from '../embed/index.js';
 
 export const VARIANTS = ['editorial-rubbing', 'tuogu-ink']; // B 暖·拓质(默认) / A 全拓·墨
+// variant 也可以直接传一份皮肤对象(设计方给的那种), 不必是这两个名字之一 —— 见 docs/可换参数清单.md
+const isSkin = (v) => v && typeof v === 'object';
 
 /**
  * 便捷句柄:一次建模,按需吐整年 / 单月 SVG。
@@ -50,7 +52,7 @@ export const VARIANTS = ['editorial-rubbing', 'tuogu-ink']; // B 暖·拓质(默
  */
 export function createRecord(activities = [], opts = {}) {
   const year = opts.year || 2026;
-  const variant = VARIANTS.includes(opts.variant) ? opts.variant : 'editorial-rubbing';
+  const variant = isSkin(opts.variant) || VARIANTS.includes(opts.variant) ? opts.variant : 'editorial-rubbing';
   const tex = opts.texture;
   const acts = Array.isArray(activities) ? activities : [];
   const model = toRecordModel(acts, year, variant);

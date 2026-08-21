@@ -3,7 +3,7 @@
 //   暖拓质纸 · 墨深=当日投入 · 朱砂印=里程碑 · 素纸留白=没活动。
 // 自带一套「卡片」几何(竖版 210×280mm), 不复用 layout.js(那是整年长条)。
 import { MONTHS_ZH, MONTHS_NUM, daysInMonth, dow, iso } from '../data/model.js';
-import { RECORD_VARIANTS } from './renderRecord.js';
+import { resolveVariant } from './renderRecord.js';
 import { resolveTexture } from '../texture/index.js';
 import { inkOpacity, legendItems, monthTotals, milestonesByDay, clipText } from './paint.js';
 
@@ -67,7 +67,7 @@ function seal(x, y, s, label, c, withLabel) {
 
 export function renderMonth(model, monthIndex = 0, opts = {}) {
   const variant = opts.variant || model.variant || 'editorial-rubbing';
-  const c = RECORD_VARIANTS[variant] || RECORD_VARIANTS['editorial-rubbing'];
+  const c = resolveVariant(variant);
   const mono = !!c.mono;
   const { year, categories = [], days = {}, milestones = [] } = model;
   const catById = Object.fromEntries(categories.map((x) => [x.id, x]));

@@ -280,8 +280,11 @@ export function toDailySeries(activities, yearIn = 2026) {
 // level 是唯一的强度真源: level→墨深(intensity), level 0 不落格(留白), 里程碑=朱砂
 export function toRecordModel(activities, yearIn = 2026, variant = 'editorial-rubbing') {
   const { maxWeight, series, kept: acts, dropped, year } = toDailySeries(activities, yearIn);
-  const pal = PALETTES[variant] || PALETTES['editorial-rubbing'];
-  const mono = variant === 'tuogu-ink';
+  // variant 可以是预置名, 也可以是设计方给的一份皮肤对象(自带 palette / mono)——
+  // 这样换一副样子不用改代码, 见 poster/renderRecord.js 的 resolveVariant 与 docs/可换参数清单.md
+  const skin = variant && typeof variant === 'object' ? variant : null;
+  const pal = (skin && skin.palette) || PALETTES[variant] || PALETTES['editorial-rubbing'];
+  const mono = skin ? !!skin.mono : variant === 'tuogu-ink';
   const categories = ACTIVITY_TYPES.map((t) => ({ id: t.id, name: t.name, color: pal[t.id], render: 'fill' }));
   // 数据里出现的未登记类型 → 自动补进分类表(否则渲染查不到分类, 那天会静默留白)
   const known = new Set(categories.map((c) => c.id));
