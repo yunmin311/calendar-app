@@ -6,6 +6,22 @@
 > 产品几经转向:早期是「A1 年历规划海报」,现锁定为 **CO 活动记录生成器**;视觉走**方向②暖·编辑**的**拓古材质升级版(B)**。
 > 详见 `docs/视觉方向-锁定.md`、`docs/数据契约-占位.md`、`PROGRESS.md`(进度台账)。
 
+## 最短上手路径(三步)
+
+1. **先看东西** —— 双击 `design/index.html`。所有能看的页面(整年图 / 单月卡 / 可嵌小件 / 四质感 / 印刷校样)
+   都从这一页进,每条附一句"这是什么"。不用 npm、不用起服务。
+2. **跑一遍自测** —— `node scripts/test-all.mjs`。全绿说明本机没坏;顺带证明所有出口口径一致。
+3. **调它** —— 单一入口 `src/record/index.js`:
+
+   ```js
+   import { createRecord } from './src/record/index.js';
+   const rec = createRecord(activities, { year: 2026 });
+   rec.yearSVG();      // 整年长条    rec.monthSVG(2);    // 单月卡
+   rec.statCardSVG();  // 统计卡      rec.report();       // 可粘贴的文字简报
+   ```
+
+想换一副样子(配色 / 质感)不用改代码,把一份皮肤对象传给 `variant` 即可 —— 见 `docs/可换参数清单.md`。
+
 ## 它是什么
 
 一个**纯 render+export 组件**:
@@ -116,12 +132,16 @@ node scripts/test-open-types.mjs        # 类型开放(图与统计数字不许�
 node scripts/test-consistency.mjs       # 一致性/不丢数据/图例不说谎
 node scripts/test-record-pdf.mjs        # 印刷 PDF 样张(整年 847×600 / 单月 216×286)
 node scripts/test-print-geometry.mjs    # 印刷坐标 = 屏幕几何(解 PDF 内容流逐格比对)
+node scripts/test-co.mjs                # CO 口径验收(零里程碑版面 / 条目数分档 / 三类定色)
+node scripts/test-skin.mjs              # 皮肤可换性(换配色质感不改代码, 且不许改数字)
+node scripts/test-endtoend.mjs          # 端到端一致性(同一份数据走完全部出口逐项对账)
 
 node scripts/build-texture-studio.mjs       # 质感调参台 HTML(给设计师拖滑块用)
 node scripts/build-texture-gallery.mjs      # 四质感样品册 HTML
 node scripts/build-embed-demo.mjs           # 可嵌入小件演示 HTML
 node scripts/build-record-comparisons.mjs   # 整年 A/B 对照 HTML
 node scripts/build-month-preview.mjs        # 单月详情预览 HTML
+node scripts/build-index.mjs                # 总入口页 design/index.html(缺文件/死链会报错)
 ```
 
 ## 印刷字体(合规)

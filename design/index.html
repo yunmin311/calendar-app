@@ -1,0 +1,135 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>活动记录生成器 · 全部能看的东西</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f4efe3;color:#20201b;font-family:Georgia,"Songti SC","Microsoft YaHei",serif;
+  padding:6vh max(4vw,24px) 12vh;line-height:1.7}
+.wrap{max-width:860px;margin:0 auto}
+h1{font-size:30px;letter-spacing:.06em;font-weight:normal}
+.sub{color:#8c8371;font-size:13px;letter-spacing:.06em;margin-top:8px}
+.lead{margin:26px 0 0;padding:16px 18px;background:#eaded0;font-size:14px;color:#3a3529}
+.lead b{color:#20201b}
+hr{border:0;border-top:1px solid #d9cfb9;margin:34px 0 0}
+section{margin-top:34px}
+h2{font-size:17px;font-weight:normal;letter-spacing:.08em}
+.note{color:#8c8371;font-size:13px;margin-top:6px}
+ul{list-style:none;margin-top:16px}
+li{padding:14px 0 14px 16px;border-left:2px solid #d9cfb9;margin-bottom:12px}
+li:hover{border-left-color:#9e3b32}
+li a{color:#20201b;font-size:16px;text-decoration:none;border-bottom:1px solid #c8bda6}
+li a:hover{border-bottom-color:#9e3b32;color:#9e3b32}
+li a em{font-style:normal;font-size:10px;letter-spacing:.1em;color:#9e3b32;border:1px solid #d9cfb9;padding:1px 4px;vertical-align:2px}
+li p{font-size:13.5px;color:#4a4438;margin-top:5px}
+li code{display:inline-block;margin-top:6px;font-family:Consolas,Menlo,monospace;font-size:11.5px;color:#8c8371}
+.stale{opacity:.62}
+footer{margin-top:44px;font-size:12.5px;color:#8c8371}
+footer p{margin-top:6px}
+footer b{color:#4a4438;font-weight:normal}
+</style></head><body><div class="wrap">
+<h1>活动记录生成器 · 全部能看的东西</h1>
+<p class="sub">Activity Record · 纯 render+export 组件 · 双击任意一条即可打开,不用 npm、不用起服务</p>
+<p class="lead">这一页由 <b>node scripts/build-index.mjs</b> 生成,清单缺文件会报错。
+新做了演示页就往 <b>SECTIONS</b> 里加一条 —— 不加会被这个脚本点名。</p>
+<hr>
+
+<section>
+  <h2>一、先看这个</h2>
+  <p class="note">第一次来的话,从上往下看三页就够了。</p>
+  <ul>
+    <li>
+      <a href="2026-08-12-record-pivot/00-index.html">整年留痕 · A/B 对照</a>
+      <p>组件的主出口:12 月行 × 31 日列的整年长条。左右两套皮肤对照 —— B 暖·编辑(默认)与 A 全拓·墨。</p>
+      <code>node scripts/build-record-comparisons.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-14-month-detail/month-detail-preview.html">单月卡 · 预览</a>
+      <p>整年图放大到单月:7 列周历、日号、当月合计、图例。一月(有里程碑)/ 三月(最忙)/ 八月(留白断口)三张。</p>
+      <code>node scripts/build-month-preview.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-19-texture-module/01-%E5%8F%AF%E5%B5%8C%E5%85%A5%E5%B0%8F%E4%BB%B6%E6%BC%94%E7%A4%BA.html">可嵌入小件 · 演示</a>
+      <p>同一份数据塞进侧栏尺寸的小件:活动带 / 统计卡 / 分组横条。同页 14 个实例互不撞车(滤镜 id 按内容派生)。</p>
+      <code>node scripts/build-embed-demo.mjs</code>
+    </li>
+  </ul>
+</section>
+<section>
+  <h2>二、手工质感</h2>
+  <p class="note">质感是可编辑的模块(src/texture/index.js),不是写死的背景图。</p>
+  <ul>
+    <li>
+      <a href="2026-08-19-texture-module/02-%E8%B4%A8%E6%84%9F%E8%B0%83%E5%8F%82%E5%8F%B0.html">质感调参台(给设计师)</a>
+      <p>拖滑块实时看四套质感,调顺眼了页面下方直接吐出可粘贴的配置。双击就开,不用 npm、不用起服务。</p>
+      <code>node scripts/build-texture-studio.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-19-texture-module/00-%E8%B4%A8%E6%84%9F%E6%A0%B7%E5%93%81%E5%86%8C.html">四质感样品册</a>
+      <p>拓质 / 扎染 / 手绘 / 拓扑 四套预设的对照样张 —— 换载体(整年图/单月卡/小件)花纹密度是否一致,看这页。</p>
+      <code>node scripts/build-texture-gallery.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-12-record-pivot/B-editorial-rubbing.html">B 暖·编辑(单开)</a>
+      <p>默认皮肤单独一页,方便截图与逐格挑毛病。</p>
+      <code>node scripts/build-record-comparisons.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-12-record-pivot/A-tuogu-full.html">A 全拓·墨(单开)</a>
+      <p>单色墨皮肤:不用分类色,只用墨深说话,墨层套破边滤镜。</p>
+      <code>node scripts/build-record-comparisons.mjs</code>
+    </li>
+  </ul>
+</section>
+<section>
+  <h2>三、印刷校样(PDF)</h2>
+  <p class="note">真尺寸 · 3mm 出血 · 裁切标 · CMYK · 子集嵌字 · 拓质栅格化位图。浏览器里可能只下载不预览,下下来看。</p>
+  <ul>
+    <li>
+      <a href="2026-08-12-record-pivot/record-editorial-rubbing-proof.pdf" target="_blank">整年长条 · B 暖·编辑 <em>PDF</em></a>
+      <p>A1 847×600mm(841×594 + 3mm 出血)。</p>
+      <code>node scripts/test-record-pdf.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-12-record-pivot/record-tuogu-ink-proof.pdf" target="_blank">整年长条 · A 全拓·墨 <em>PDF</em></a>
+      <p>同规格,单色墨版。</p>
+      <code>node scripts/test-record-pdf.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-12-record-pivot/month-02-%E6%9C%89%E9%87%8C%E7%A8%8B%E7%A2%91-proof.pdf" target="_blank">单月卡 · 二月(有里程碑) <em>PDF</em></a>
+      <p>216×286mm(210×280 + 3mm 出血),朱砂印落在格子上的样子。</p>
+      <code>node scripts/test-record-pdf.mjs</code>
+    </li>
+    <li>
+      <a href="2026-08-12-record-pivot/month-08-%E7%95%99%E7%99%BD%E6%96%AD%E5%8F%A3%E4%B8%8E%E9%87%8C%E7%A8%8B%E7%A2%91-proof.pdf" target="_blank">单月卡 · 八月(留白断口) <em>PDF</em></a>
+      <p>大段没做的月份长什么样 —— 留白是内容,不是缺页。</p>
+      <code>node scripts/test-record-pdf.mjs</code>
+    </li>
+  </ul>
+</section>
+<section class="stale">
+  <h2>四、历史留档(已不在活路径)</h2>
+  <p class="note">早期是「A1 年历规划海报」,2026-08-12 转向为「活动记录生成器」。代码已清掉,页面留着做个记性。</p>
+  <ul>
+    <li>
+      <a href="2026-08-11-poster-directions/00-index.html">三个海报方向(瑞士 / 编辑 / 粗野)</a>
+      <p>转向前的三选一。方向②编辑是现在这套暖·手作气质的来处。三张概念稿从这页进。</p>
+      <code>不再重出(生成脚本已随旧路径清掉)</code>
+    </li>
+    <li>
+      <a href="2026-08-11-production-v1/poster-v1.html">规划海报 v1</a>
+      <p>旧定位的成品页:格子是"计划要做的事",不是"已经做过的事"。</p>
+      <code>不再重出</code>
+    </li>
+    <li>
+      <a href="2026-08-11-production-v1/poster-print-proof.pdf" target="_blank">规划海报 v1 · 印刷校样 <em>PDF</em></a>
+      <p>旧定位的 PDF 校样,印刷管线最早就是在它身上跑通的。</p>
+      <code>不再重出</code>
+    </li>
+  </ul>
+</section>
+<footer>
+  <p><b>组件怎么调</b> —— 单一入口 <code>src/record/index.js</code>,用法见仓根 <code>README.md</code>。</p>
+  <p><b>换一副样子</b> —— 配色/质感参数整套可换,不改代码:<code>docs/可换参数清单.md</code>。</p>
+  <p><b>接 CO</b> —— 占位数据契约与待对齐点:<code>docs/数据契约-占位.md</code>;进度台账 <code>PROGRESS.md</code>。</p>
+</footer>
+</div></body></html>
